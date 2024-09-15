@@ -1,0 +1,6 @@
+{
+    "mesonbuild.configureOnOpen": false,
+    "clangd.path": "clangd-18",
+    "clangd.enableCodeCompletion": true,
+    "clangd.arguments": ["-pretty", "--background-index", "--compile-commands-dir=tgt"]
+}

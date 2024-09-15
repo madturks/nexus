@@ -1,0 +1,16 @@
+include(./common)
+
+
+{% set gcc_version = 14 %}
+
+[settings]
+os=Linux
+arch=x86_64
+compiler=gcc
+compiler.libcxx=libstdc++11
+compiler.version={{ gcc_version }}
+compiler.cppstd=11
+
+[buildenv]
+CC=/usr/bin/gcc-{{ gcc_version }}
+CXX=/usr/bin/g++-{{ gcc_version }}
