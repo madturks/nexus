@@ -1,3 +1,7 @@
+# Nexus
+
+Reliable UDP implementation using modern C++.
+
 ## Build using clang
 
 ```sh

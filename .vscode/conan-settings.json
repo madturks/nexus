@@ -1,0 +1,24 @@
+{
+    "profiles": [
+        {
+            "name": ".config-Profiles found in the cache:",
+            "conanFile": "${workspaceFolder}/.config/conanfile.py",
+            "profile": "Profiles found in the cache:",
+            "installArg": "",
+            "buildArg": "",
+            "createUser": "disroop",
+            "createChannel": "development",
+            "createArg": ""
+        },
+        {
+            "name": ".config",
+            "conanFile": "${workspaceFolder}/.config/conanfile.py",
+            "profile": "default",
+            "installArg": "",
+            "buildArg": "",
+            "createUser": "disroop",
+            "createChannel": "development",
+            "createArg": ""
+        }
+    ]
+}

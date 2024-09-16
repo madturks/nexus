@@ -21,5 +21,6 @@ run_command('conan', 'install', '--output-folder',
 # by Conan.
 
 boost = dependency('boost')
+capnproto = dependency('capnproto')
 
-executable('hello-world', 'nexus/src/main.cpp', dependencies: [boost])
+executable('hello-world', 'nexus/src/main.cpp', dependencies: [boost, capnproto])
