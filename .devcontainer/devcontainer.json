@@ -5,7 +5,8 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"remoteEnv": {
-        "PATH": "${containerEnv:PATH}:/opt/pip/bin"
+        "PATH": "${containerEnv:PATH}:/opt/pip/bin",
+		"PKG_CONFIG_PATH": "/opt/conan-pkg-root"
     },
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {},
@@ -13,7 +14,7 @@
 		"ghcr.io/schlich/devcontainer-features/powerlevel10k:1": {},
 		"ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {},
 		"ghcr.io/deep-space-cartel/devcontainers-features/apt:1": {
-			"packages": "gcc-14 g++-14 llvm-18 lld-18 clang-18 libclang-rt-18-dev libc++-18-dev libc++abi-18-dev libunwind-18-dev clang-format-18 clang-tidy-18 clangd-18 gdb ninja-build nano vim git-extras git-lfs"
+			"packages": "cmake gcc-14 g++-14 llvm-18 lld-18 clang-18 libclang-rt-18-dev libc++-18-dev libc++abi-18-dev libunwind-18-dev clang-format-18 clang-tidy-18 clangd-18 gdb ninja-build nano vim git-extras git-lfs pkg-config"
 		},
 		"ghcr.io/deep-space-cartel/devcontainers-features/pip:1": {
 			"packages": "meson conan>=2",

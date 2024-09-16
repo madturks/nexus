@@ -1,0 +1,26 @@
+--> Implement on top of UDP
+--> TODO: Asymmetric handshake for key exchange
+--> TODO: Symmetric encryption
+--> TODO: Unreliable message delivery
+--> TODO: Reliable message delivery
+    -> https://github.com/ValveSoftware/GameNetworkingSockets/blob/master/src/steamnetworkingsockets/clientlib/SNP_WIRE_FORMAT.md
+--> Continue from here.
+
+
+// [Retransmission timer]
+
+Encapsulation:
+
+[Type]
+[Size]
+[SequenceID]
+
+// udp datagram is as-is. either you got it, or not.
+// if you got it, it's the message the sender has sent. no possibility of out-of-order chunks.
+
+
+
+
+
+
+

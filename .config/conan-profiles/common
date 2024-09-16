@@ -39,6 +39,6 @@ boost/*:without_chrono=True
 build_type=RelWithDebInfo
 
 [buildenv]
-gtest:CXXFLAGS=-Wno-error
-gtest:CFLAGS=-Wno-error
+# gtest:CXXFLAGS=-Wno-error
+# gtest:CFLAGS=-Wno-error
 boost:CXXFLAGS=-Wno-error=null-dereference

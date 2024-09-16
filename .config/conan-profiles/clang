@@ -8,11 +8,11 @@ arch=x86_64
 compiler=clang
 compiler.libcxx=libc++
 compiler.version={{ clang_version }}
-compiler.cppstd=11
+compiler.cppstd=20
 
 [buildenv]
 CC=/usr/bin/clang-{{ clang_version }}
 CXX=/usr/bin/clang++-{{ clang_version }}
 CXXFLAGS=-stdlib=libc++
-benchmark:CXXFLAGS=-stdlib=libc++ -lc++ -Wno-error=deprecated-copy -Wno-unused-variable -Wno-unused -Wunused-but-set-variable -Wno-everything -Wno-error -Wno-deprecated -w
-gtest:CXXFLAGS=-stdlib=libc++ -lc++ -Wno-error=deprecated-copy -Wno-deprecated -Wno-deprecated-declarations -Wno-deprecated-copy -Wno-error -w
+# benchmark:CXXFLAGS=-stdlib=libc++ -lc++ -Wno-error=deprecated-copy -Wno-unused-variable -Wno-unused -Wunused-but-set-variable -Wno-everything -Wno-error -Wno-deprecated -w
+# gtest:CXXFLAGS=-stdlib=libc++ -lc++ -Wno-error=deprecated-copy -Wno-deprecated -Wno-deprecated-declarations -Wno-deprecated-copy -Wno-error -w
