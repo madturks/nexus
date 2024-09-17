@@ -1,6 +1,16 @@
 {
     "mesonbuild.configureOnOpen": false,
+    "mesonbuild.buildFolder": "tgt",
+    "mesonbuild.configureOptions": ["--wipe", "--native-file=.config/meson-clang"],
+    "mesonbuild.formatting.enabled": true,
+    "mesonbuild.linting.enabled": true,
     "clangd.path": "clangd-18",
     "clangd.enableCodeCompletion": true,
-    "clangd.arguments": ["-pretty", "--background-index", "--compile-commands-dir=tgt"]
+    "clangd.arguments": [
+        "-pretty",
+        "--background-index",
+        "--compile-commands-dir=tgt"
+    ],
+    "C_Cpp.default.compileCommands": "/workspace/madturks/nexus/tgt/compile_commands.json",
+    "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild"
 }

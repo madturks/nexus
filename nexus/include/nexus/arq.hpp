@@ -30,6 +30,7 @@
 // right key for the session, so only the authenticated user can control the connection.
 
 // TODO: Continue from here. 
+// TODO: Reconsider QUIC?
 
 // Server checks the credentials, 
 

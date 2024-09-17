@@ -1,15 +1,16 @@
 include(./common)
 
-
 {% set gcc_version = 14 %}
 
 [settings]
 os=Linux
 arch=x86_64
 compiler=gcc
+# libstdc++11 is a conan-specific thing, and it denotes
+# conan will use the newer C++ABI (post C++11).
 compiler.libcxx=libstdc++11
 compiler.version={{ gcc_version }}
-compiler.cppstd=20
+compiler.cppstd=23
 
 [buildenv]
 CC=/usr/bin/gcc-{{ gcc_version }}
