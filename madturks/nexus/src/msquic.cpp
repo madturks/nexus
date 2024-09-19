@@ -1,7 +1,10 @@
 
+
 #include <fmt/base.h>
-#include <nexus/quic.hpp>
-#include <nexus/msquic.hpp>
+#include <mutex>
+#include <mad/nexus/quic.hpp>
+#include <mad/nexus/msquic.hpp>
+#include <mad/circular_buffer_vm.hpp>
 
 #include <memory>
 #include <expected>
@@ -13,6 +16,9 @@
 #include <string_view>
 
 namespace {
+
+    using circular_buffer_t = mad::circular_buffer_vm<mad::vm_cb_backend_mmap>;
+
     /**
      * Since HQUIC is a pointer type itself, we have to define
      * a deleter type with ::pointer typedef, otherwise the default
@@ -34,7 +40,7 @@ namespace {
     };
 } // namespace
 
-namespace mt::nexus {
+namespace mad::nexus {
     struct msquic_ctx {
 
         using msquic_api_uptr_t            = std::unique_ptr<const QUIC_API_TABLE, decltype(&MsQuicClose)>;
@@ -92,7 +98,7 @@ namespace mt::nexus {
 
             // If failed, return.
             if (!listener) {
-                return mt::nexus::quic_error_code::listener_initialization_failed;
+                return mad::nexus::quic_error_code::listener_initialization_failed;
             }
 
             // Configures the address used for the listener to listen on all IP
@@ -101,8 +107,10 @@ namespace mt::nexus {
             QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
             QuicAddrSetPort(&Address, udp_port);
 
-            const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(alpn_sv.length() - 1),
+            const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(alpn_sv.length()),
                                       reinterpret_cast<std::uint8_t *>(const_cast<char *>(alpn_sv.data()))};
+
+            fmt::println("test {} {}", alpn_sv, alpn_sv.length());
 
             // Start listening
             if (auto status = api->ListenerStart(listener.get(), &alpn, 1, &Address); QUIC_FAILED(status)) {
@@ -129,7 +137,7 @@ namespace mt::nexus {
                 MsQuicClose);
 
             if (!ctx->api) {
-                return std::unexpected(mt::nexus::quic_error_code::api_initialization_failed);
+                return std::unexpected(mad::nexus::quic_error_code::api_initialization_failed);
             }
 
             return initialize_msquic(cfg, std::move(ctx));
@@ -156,7 +164,6 @@ namespace mt::nexus {
                     api->RegistrationClose(handle);
                     fmt::println("msquic_registration deleter done");
                 }));
-
             return static_cast<bool>(registration);
         }
 
@@ -182,14 +189,14 @@ namespace mt::nexus {
             return settings;
         }
 
-        bool initialize_configuration(const mt::nexus::quic_server_configuration & cfg) {
+        bool initialize_configuration(const mad::nexus::quic_server_configuration & cfg) {
 
             auto settings = settings_to_msquic(cfg);
 
             configuration = msquic_handle_uptr_t(
                 [this, &cfg, &settings]() -> HQUIC {
                     HQUIC config;
-                    const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(cfg.alpn.length() - 1),
+                    const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(cfg.alpn.length()),
                                               reinterpret_cast<std::uint8_t *>(const_cast<char *>(cfg.alpn.c_str()))};
 
                     if (auto status =
@@ -215,7 +222,7 @@ namespace mt::nexus {
          * Checks for the existence of certificate and private key files, loads them into a
          * QUIC credential configuration, and returns an error code if any step fails.
          */
-        quic_error_code initialize_credentials(const mt::nexus::quic_credentials & creds) {
+        quic_error_code initialize_credentials(const mad::nexus::quic_credentials & creds) {
 
             if (!std::filesystem::exists(creds.certificate_path)) {
                 return quic_error_code::missing_certificate;
@@ -263,9 +270,12 @@ namespace mt::nexus {
             return std::move(ctx);
         }
     };
-} // namespace mt::nexus
+} // namespace mad::nexus
 
-namespace mt::nexus {
+static circular_buffer_t buffer{16384, circular_buffer_t::auto_align_to_page{}};
+static std::mutex mtx;
+
+namespace mad::nexus {
 
     /**
      * Opaque to impl.
@@ -276,7 +286,33 @@ namespace mt::nexus {
 
     static QUIC_STATUS ServerStreamCallback([[maybe_unused]] HQUIC stream, [[maybe_unused]] void * context,
                                             [[maybe_unused]] QUIC_STREAM_EVENT * event) {
+        auto ctx = static_cast<msquic_ctx *>(context);
+        assert(ctx);
+
+        switch (event->Type) {
+            case QUIC_STREAM_EVENT_RECEIVE: {
+                fmt::println("Received data from the remote count:{} total_size:{}", event->RECEIVE.BufferCount,
+                             event->RECEIVE.TotalBufferLength);
+
+                {
+                    std::unique_lock<std::mutex> lock;
+                    for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
+                        buffer.put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
+                    }
+                }
+                // event->RECEIVE.TotalBufferLength = 5;
+
+                // ctx->api->StreamReceiveSetEnabled(stream, true);
+                //  event->RECEIVE.Buffers
+                //  pending?
+                //  ctx->api->StreamReceiveComplete(stream, event->RECEIVE.TotalBufferLength);
+                //  event->RECEIVE.TotalBufferLength -> Indicate how much of the buffer is consumed.
+            } break;
+        }
+        fmt::println("total {} ", buffer.consumed_space());
+
         // TODO: Implement this!
+        // https://microsoft.github.io/msquic/msquicdocs/docs/Deployment.html#nat-rebindings-without-load-balancing-support
         return QUIC_STATUS_SUCCESS;
     }
 
@@ -287,6 +323,8 @@ namespace mt::nexus {
 
         switch (event->Type) {
             case QUIC_CONNECTION_EVENT_CONNECTED:
+                // TODO: Invoke a callback to indicate that a new connection has been established?
+                fmt::println("Connection received.");
                 ctx->api->ConnectionSendResumptionTicket(connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
                 break;
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
@@ -318,6 +356,8 @@ namespace mt::nexus {
 
         auto ctx = static_cast<msquic_ctx *>(context);
         assert(ctx);
+
+        fmt::println("ServerListenerCallback() - Event Type: `{}`", static_cast<int>(Event->Type));
 
         switch (Event->Type) {
             case QUIC_LISTENER_EVENT_NEW_CONNECTION: {
@@ -359,4 +399,4 @@ namespace mt::nexus {
         return o2i(pimpl).listen(cfg.udp_port_number, cfg.alpn, ServerListenerCallback, pimpl.get());
     }
 
-} // namespace mt::nexus
+} // namespace mad::nexus

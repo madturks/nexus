@@ -7,7 +7,7 @@
 #include <system_error>
 #include <utility>
 
-namespace mt::nexus {
+namespace mad::nexus {
 
     enum class quic_error_code : std::int32_t
     {
@@ -78,13 +78,21 @@ namespace mt::nexus {
         [[nodiscard]] virtual std::error_code init()   = 0;
         [[nodiscard]] virtual std::error_code listen() = 0;
 
+        struct quic_connection_handle {};
+        struct quic_stream_handle {};
+
+        struct callback_table {
+            void(on_connected)(quic_connection_handle *);
+            void(on_stream_open)(quic_connection_handle *, quic_stream_handle*);
+        } callbacks;
+
         virtual ~quic_server();
 
     protected:
         quic_server_configuration cfg;
     };
 
-} // namespace mt::nexus
+} // namespace mad::nexus
 
 template <>
-struct std::is_error_code_enum<mt::nexus::quic_error_code> : public std::true_type {};
+struct std::is_error_code_enum<mad::nexus::quic_error_code> : public std::true_type {};

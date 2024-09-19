@@ -1,6 +1,6 @@
-#include <nexus/quic.hpp>
+#include <mad/nexus/quic.hpp>
 
-namespace mt::nexus {
+namespace mad::nexus {
     const char * quic_error_code_category::name() const noexcept {
         return "QUIC Server";
     }
@@ -37,4 +37,4 @@ namespace mt::nexus {
 
         std::unreachable();
     }
-} // namespace mt::nexus
+} // namespace mad::nexus

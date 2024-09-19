@@ -22,6 +22,9 @@ clang_compiler_flags = [
     '-Wno-switch-default',
     '-Wno-exit-time-destructors',
     '-Wno-padded',
+    '-fsafe-buffer-usage-suggestions',
+    '-Wno-unsafe-buffer-usage',
+    '-Wno-documentation'
 ]
 
 clang_linker_flags = ['-stdlib=libc++']
@@ -60,38 +63,38 @@ run_command(
 capnproto = dependency('capnproto', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
 spdlog = dependency('spdlog', include_type: 'system')
+gtest = dependency('gtest', include_type: 'system')
+gbench = dependency('benchmark', include_type: 'system')
+stduuid = dependency('stduuid', include_type: 'system')
 
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.
 msquic = declare_dependency(
     dependencies: compiler.find_library(
         'msquic',
-        dirs: meson.project_source_root() + '/vendor/msquic/bin',
+        dirs: meson.project_source_root() + '/vendor/msquic/2.3.6/bin',
         has_headers: ['msquic.h', 'msquic_posix.h', 'quic_sal_stub.h'],
-        header_include_directories: include_directories('vendor/msquic/include', is_system: true),
+        header_include_directories: include_directories('vendor/msquic/2.3.6/include', is_system: true),
         required: true,
     ),
-    include_directories: include_directories('vendor/msquic/include', is_system: true),
-    version: '1.2.3',
+    include_directories: include_directories('vendor/msquic/2.3.6/include', is_system: true),
+    version: '2.3.6',
 )
 
-nexus = declare_dependency(
-    link_with: library(
-        'nexus',
-        [
-            'nexus/src/quic.cpp',
-            'nexus/src/msquic.cpp',
-            'nexus/src/quic_error_code_category.cpp',
-        ],
-        include_directories: include_directories('nexus/include'),
-        install: true,
-        dependencies: [msquic, fmt],
-    ),
-    include_directories: include_directories('nexus/include'),
+subdir('madturks/core/concept')
+subdir('madturks/core/algorithm')
+subdir('madturks/core/container')
+subdir('madturks/nexus')
+
+executable(
+    'msquic-test-server',
+    'sample/src/msquic_test_server.cpp',
+    dependencies: [nexus, fmt],
 )
 
 executable(
-    'msquic-test',
-    'sample/src/msquic_test.cpp',
-    dependencies: [nexus, fmt],
+    'msquic-sample',
+    'sample/src/msquic_sample.cpp',
+    dependencies: [msquic],
+    cpp_args: '-Wno-everything',
 )

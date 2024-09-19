@@ -1,7 +1,7 @@
 {
     "mesonbuild.configureOnOpen": false,
     "mesonbuild.buildFolder": "tgt",
-    "mesonbuild.configureOptions": ["--wipe", "--native-file=.config/meson-clang"],
+    "mesonbuild.configureOptions": ["--wipe", "--native-file=.config/meson-clang", "--buildtype=debug" ],
     "mesonbuild.formatting.enabled": true,
     "mesonbuild.linting.enabled": true,
     "clangd.path": "clangd-18",
@@ -12,5 +12,5 @@
         "--compile-commands-dir=tgt"
     ],
     "clangd.inactiveRegions.useBackgroundHighlight": true,
-    "clangd.detectExtensionConflicts": true
+    "clangd.detectExtensionConflicts": true,
 }

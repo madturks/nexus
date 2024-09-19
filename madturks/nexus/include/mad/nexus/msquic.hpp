@@ -1,9 +1,9 @@
 #pragma once
 
-#include <nexus/quic.hpp>
+#include <mad/nexus/quic.hpp>
 #include <memory>
 
-namespace mt::nexus {
+namespace mad::nexus {
 
     class msquic_server : public quic_server {
     public:
@@ -23,5 +23,4 @@ namespace mt::nexus {
         std::shared_ptr<void> pimpl;
     };
 
-
-} // namespace mt::nexus
+} // namespace mad::nexus

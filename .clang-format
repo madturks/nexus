@@ -306,3 +306,5 @@ QualifierAlignment: Custom
 QualifierOrder:  ['static', 'inline', 'const', 'constexpr', 'volatile', 'type' ]
 
 SeparateDefinitionBlocks : Always
+
+InsertNewlineAtEOF: True
