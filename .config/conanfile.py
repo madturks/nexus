@@ -6,7 +6,6 @@ class Nexus(ConanFile):
     generators = "PkgConfigDeps"
 
     def requirements(self):
-        self.requires("boost/1.82.0")
         self.requires("spdlog/1.14.1")
         self.requires("fmt/11.0.2", override=True)
         self.requires("capnproto/1.0.2")

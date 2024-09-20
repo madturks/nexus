@@ -5,15 +5,18 @@
 #include <mad/nexus/quic.hpp>
 #include <mad/nexus/msquic.hpp>
 #include <mad/circular_buffer_vm.hpp>
+#include <mad/concurrent.hpp>
 
 #include <memory>
 #include <expected>
 #include <functional>
 #include <filesystem>
+#include <netinet/in.h>
+#include <string_view>
 
 #include <msquic.h>
 #include <fmt/format.h>
-#include <string_view>
+#include <unordered_map>
 
 namespace {
 
@@ -27,6 +30,8 @@ namespace {
     struct msquic_handle_deleter {
         using pointer = HQUIC;
 
+        // Constructor that accepts a deleter function. If no deleter function is provided,
+        // it defaults to an empty function.
         msquic_handle_deleter(std::function<void(HQUIC)> deleter_fn = {}) : deleter(deleter_fn) {}
 
         void operator()(HQUIC h) {
@@ -41,6 +46,64 @@ namespace {
 } // namespace
 
 namespace mad::nexus {
+
+    struct stream_context {
+
+        /**
+         * Construct a new stream context object
+         *
+         * @param owner The owning MSQUIC connection
+         * @param receive_buffer_size Size of the receive circular buffer.
+         * @param send_buffer_size  Size of the send circular buffer.
+         */
+        stream_context(HQUIC owner, std::size_t receive_buffer_size = 16384, std::size_t send_buffer_size = 16384) :
+            owning_connection(owner), receive_buffer(receive_buffer_size, circular_buffer_t::auto_align_to_page{}),
+            send_buffer(send_buffer_size, circular_buffer_t::auto_align_to_page{}) {}
+
+        inline HQUIC connection() const {
+            return owning_connection;
+        }
+
+        inline circular_buffer_t & rbuf() {
+            return receive_buffer;
+        }
+
+        inline const circular_buffer_t & rbuf() const {
+            return receive_buffer;
+        }
+
+        inline circular_buffer_t & sbuf() {
+            return send_buffer;
+        }
+
+        inline const circular_buffer_t & sbuf() const {
+            return send_buffer;
+        }
+
+    private:
+        /**
+         * The connection that stream belongs to.
+         */
+        HQUIC owning_connection;
+        /**
+         * Data received from the stream
+         * will go into this buffer.
+         */
+        circular_buffer_t receive_buffer;
+
+        /**
+         * Data being sent is queued in this buffer.
+         * MSQUIC layer is going to consume it.
+         */
+        circular_buffer_t send_buffer;
+    };
+
+    // Stream contexts are going to be stored in connection context.
+    struct connection_context {
+        HQUIC connection;
+        std::unordered_map<HQUIC, stream_context> streams;
+    };
+
     struct msquic_ctx {
 
         using msquic_api_uptr_t            = std::unique_ptr<const QUIC_API_TABLE, decltype(&MsQuicClose)>;
@@ -52,6 +115,8 @@ namespace mad::nexus {
         msquic_handle_uptr_t registration  = {nullptr, {}};
         msquic_handle_uptr_t configuration = {nullptr, {}};
         msquic_handle_uptr_t listener      = {nullptr, {}};
+
+        mad::concurrent<std::unordered_map<HQUIC, connection_context>> connection_map;
 
         /**
          * Start listening on @p udp_port.
@@ -272,9 +337,6 @@ namespace mad::nexus {
     };
 } // namespace mad::nexus
 
-static circular_buffer_t buffer{16384, circular_buffer_t::auto_align_to_page{}};
-static std::mutex mtx;
-
 namespace mad::nexus {
 
     /**
@@ -286,47 +348,94 @@ namespace mad::nexus {
 
     static QUIC_STATUS ServerStreamCallback([[maybe_unused]] HQUIC stream, [[maybe_unused]] void * context,
                                             [[maybe_unused]] QUIC_STREAM_EVENT * event) {
-        auto ctx = static_cast<msquic_ctx *>(context);
+        auto ctx = static_cast<connection_context *>(context);
         assert(ctx);
 
+        // we can use the connection as context here?
         switch (event->Type) {
             case QUIC_STREAM_EVENT_RECEIVE: {
+
+                if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
+                    fmt::println("received data from stream {} but stream is not present in connection!", static_cast<void *>(stream));
+                } else {
+                    auto & stream_ctx = itr->second;
+
+                    for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
+                        stream_ctx.rbuf().put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
+                    }
+                    fmt::println("total {}", stream_ctx.rbuf().consumed_space());
+                }
                 fmt::println("Received data from the remote count:{} total_size:{}", event->RECEIVE.BufferCount,
                              event->RECEIVE.TotalBufferLength);
 
-                {
-                    std::unique_lock<std::mutex> lock;
-                    for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
-                        buffer.put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
-                    }
-                }
-                // event->RECEIVE.TotalBufferLength = 5;
+            } break;
 
-                // ctx->api->StreamReceiveSetEnabled(stream, true);
-                //  event->RECEIVE.Buffers
-                //  pending?
-                //  ctx->api->StreamReceiveComplete(stream, event->RECEIVE.TotalBufferLength);
-                //  event->RECEIVE.TotalBufferLength -> Indicate how much of the buffer is consumed.
+            case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE: {
+                if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
+                    fmt::println("stream shutdown");
+                    ctx->streams.erase(itr);
+                }
             } break;
         }
-        fmt::println("total {} ", buffer.consumed_space());
 
-        // TODO: Implement this!
         // https://microsoft.github.io/msquic/msquicdocs/docs/Deployment.html#nat-rebindings-without-load-balancing-support
         return QUIC_STATUS_SUCCESS;
     }
 
+    // connection type
+
+    /*
+        Generally, MsQuic creates multiple threads to parallelize work, and therefore will make parallel/overlapping upcalls to the
+       application, but not for the same connection. All upcalls to the app for a single connection and all child streams are always
+       delivered serially. This is not to say, though, it will always be on the same thread. MsQuic does support the ability to shuffle
+       connections around to better balance the load.
+    */
+
     static QUIC_STATUS ServerConnectionCallback(HQUIC connection, void * context, QUIC_CONNECTION_EVENT * event) {
         auto ctx = static_cast<msquic_ctx *>(context);
         assert(ctx);
-        // Handover the connection to the client?
+
+        QUIC_ADDR_STR remote = [&]() {
+            QUIC_ADDR remote_addr;
+            std::uint32_t addr_size = sizeof(QUIC_ADDR);
+            ctx->api->GetParam(connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
+            QUIC_ADDR_STR str;
+            QuicAddrToString(&remote_addr, &str);
+            return str;
+        }();
 
         switch (event->Type) {
-            case QUIC_CONNECTION_EVENT_CONNECTED:
+            case QUIC_CONNECTION_EVENT_CONNECTED: {
                 // TODO: Invoke a callback to indicate that a new connection has been established?
-                fmt::println("Connection received.");
-                ctx->api->ConnectionSendResumptionTicket(connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
-                break;
+                fmt::println("New client connected: {}", remote.Address);
+
+                auto wa = ctx->connection_map.exclusive_access();
+                if (auto itr = wa->find(connection); itr == wa->end()) {
+                    auto result = wa->emplace(connection, connection_context{connection, {}});
+                    if (!result.second) {
+                        fmt::println("connection could not be stored!");
+                        ctx->api->ConnectionClose(connection);
+                        return QUIC_STATUS_SUCCESS;
+                    }
+                    ctx->api->ConnectionSendResumptionTicket(connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
+                } else {
+                    fmt::println("duplicate connection event for connection {}!", static_cast<void *>(connection));
+                }
+            } break;
+            case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
+
+                auto wa = ctx->connection_map.exclusive_access();
+                if (auto itr = wa->find(connection); itr == wa->end()) {
+                    fmt::println("connection shutdown complete but no such connection in map!");
+                } else {
+                    fmt::println("Removed connection from the connection map");
+                    wa->erase(itr);
+                }
+                fmt::println("Connection shutdown complete {}", remote.Address);
+
+                ctx->api->ConnectionClose(connection);
+            } break;
+
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
                 if (event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
                     fmt::println("Connection shut down on idle.");
@@ -337,18 +446,27 @@ namespace mad::nexus {
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
                 fmt::println("Connection shut down by peer, error code: {}", event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
             } break;
-            case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
-                fmt::println("Connection shutdown complete.");
-                ctx->api->ConnectionClose(connection);
-            } break;
+
             case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
-                fmt::println("Peer started a stream.");
-                ctx->api->SetCallbackHandler(event->PEER_STREAM_STARTED.Stream, reinterpret_cast<void *>(ServerStreamCallback), context);
+                auto ra = ctx->connection_map.shared_access();
+                fmt::println("New stream {} by connection {}", static_cast<void *>(event->PEER_STREAM_STARTED.Stream),
+                             static_cast<void *>(connection));
+                if (auto itr = ra->find(connection); !(itr == ra->end())) {
+                    // Create new stream
+                    itr->second.streams.emplace(event->PEER_STREAM_STARTED.Stream, stream_context{connection});
+                    ctx->api->SetCallbackHandler(event->PEER_STREAM_STARTED.Stream, reinterpret_cast<void *>(ServerStreamCallback),
+                                                 &itr->second);
+
+                } else {
+                    fmt::println("Client tried to initiate stream but associated connection not found!");
+                }
+
             } break;
             case QUIC_CONNECTION_EVENT_RESUMED: {
                 fmt::println("Connection resumed!");
             } break;
         }
+
         return QUIC_STATUS_SUCCESS;
     }
 

@@ -24,7 +24,7 @@ clang_compiler_flags = [
     '-Wno-padded',
     '-fsafe-buffer-usage-suggestions',
     '-Wno-unsafe-buffer-usage',
-    '-Wno-documentation'
+    '-Wno-documentation',
 ]
 
 clang_linker_flags = ['-stdlib=libc++']
@@ -84,6 +84,7 @@ msquic = declare_dependency(
 subdir('madturks/core/concept')
 subdir('madturks/core/algorithm')
 subdir('madturks/core/container')
+subdir('madturks/core/concurrency')
 subdir('madturks/nexus')
 
 executable(

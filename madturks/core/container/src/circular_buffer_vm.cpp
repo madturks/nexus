@@ -65,7 +65,7 @@ namespace mad {
          * page size.
          */
         if (size % static_cast<size_t>(getpagesize()) != 0)
-            throw std::bad_exception{};
+            throw std::invalid_argument{"Size must be a multiple of page size"};
 
         element_t * vaddr = nullptr;
 
@@ -76,30 +76,31 @@ namespace mad {
             vaddr = static_cast<element_t *>(mmap(NULL, 2 * size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0));
 
             if (vaddr == MAP_FAILED) {
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to map memory"};
             }
 
             auto shm_id = shmget(IPC_PRIVATE, size, IPC_CREAT | 0700);
             munmap(vaddr, 2 * size);
 
-            if (shm_id < 0)
-                throw std::bad_exception{};
+            if (shm_id < 0) {
+                throw std::runtime_error{"Failed to create shared memory segment"};
+            }
 
             if (vaddr != shmat(shm_id, vaddr, 0)) {
                 shmctl(shm_id, IPC_RMID, nullptr);
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to attach shared memory segment"};
             }
 
             if (vaddr + size != shmat(shm_id, vaddr + size, 0)) {
                 shmdt(vaddr);
                 shmctl(shm_id, IPC_RMID, nullptr);
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to attach shared memory segment at second address"};
             }
 
             if (shmctl(shm_id, IPC_RMID, nullptr) < 0) {
                 shmdt(vaddr);
                 shmdt(vaddr + size);
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to mark shared memory segment for removal"};
             }
         } else if constexpr (cb_has_mmap_backend<BT>) {
 
@@ -118,13 +119,13 @@ namespace mad {
              * Create the anonymous file
              */
             if ((anonymous_fd_ = spcfw_memfd_create(uuid_str.c_str(), 0)) < 0)
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to create anonymous file"};
 
             /*
              * Truncate the anonymous file we've acquired
              * */
             if (ftruncate(anonymous_fd_, static_cast<long>(size)) < 0)
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to truncate anonymous file"};
 
             /**
              * Get an address for allocation.
@@ -132,18 +133,18 @@ namespace mad {
             vaddr = static_cast<element_t *>(mmap(NULL, 2 * size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
 
             if (vaddr == MAP_FAILED)
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to map memory"};
 
             /*
              * Map the first page of the memory to our anonymous file
              * */
             if (mmap(vaddr, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, anonymous_fd_, 0) == MAP_FAILED)
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to map first page of memory to anonymous file"};
             /*
              * Map the second page of the memory to our anonymous file
              * */
             if (mmap(vaddr + size, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, anonymous_fd_, 0) == MAP_FAILED)
-                throw std::bad_exception{};
+                throw std::runtime_error{"Failed to map second page of memory to anonymous file"};
         }
 
         /*
@@ -236,7 +237,7 @@ namespace mad {
 
         assert(tail_ < (total_size() * 2));
         assert(tail_ != head_);
-    } 
+    }
 
     template <circular_buffer_backend BT>
     auto circular_buffer_vm<BT>::peek(element_t * dst, const size_t amount) const -> bool {
