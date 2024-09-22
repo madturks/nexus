@@ -60,12 +60,44 @@ run_command(
 # by Conan.
 
 # boost = dependency('boost')
-capnproto = dependency('capnproto', include_type: 'system')
+flatbuffers = dependency('flatbuffers', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
 spdlog = dependency('spdlog', include_type: 'system')
 gtest = dependency('gtest', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
+
+# retrieve the path to the flatbuffers schema compiler
+flatbuffers_bindir = flatbuffers.get_variable('bindir')
+flatc_compiler = files(flatbuffers_bindir + '/flatc')
+meson.override_find_program('flatc', flatc_compiler)
+flatc = find_program('flatc')
+
+fbs_schemas = [
+    'sample/flatbuffers_schemas/main.fbs'
+]
+
+# Compile the flatbuffers schemas.
+run_command(
+    flatc.full_path(),
+    '--cpp',
+    '--scoped-enums',
+    '-o', 
+    '@0@/fbs-schemas/include/fbs-schemas'.format(meson.current_build_dir()),
+
+    fbs_schemas,
+    # capnp compile needs to locate `capnpc-c++` plugin
+    # so set the PATH environment variable.
+    env: {'PATH': flatbuffers_bindir},
+    check: true,
+)
+
+# Define a target to the schemas.
+fbs_schemas = declare_dependency(
+    include_directories: include_directories('tgt/fbs-schemas/include'),
+)
+
+# bindir
 
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.
@@ -90,7 +122,7 @@ subdir('madturks/nexus')
 executable(
     'msquic-test-server',
     'sample/src/msquic_test_server.cpp',
-    dependencies: [nexus, fmt],
+    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
 )
 
 executable(

@@ -25,6 +25,7 @@
 #include <mad/has_assign.hpp>
 // cppstd
 #include <cassert>
+#include <span>
 
 // take a look at :https://github.com/lava/linear_ringbuffer/blob/master/include/bev/linear_ringbuffer.hpp
 // also: https://github.com/google/wuffs/blob/main/script/mmap-ring-buffer.c
@@ -243,6 +244,17 @@ namespace mad {
          * @return Boolean value indicating result of the operation.
          */
         auto put(const element_t * buffer, const size_t size) -> bool;
+
+        /**
+         * @brief Put `size` bytes to circular buffer from `buffer`.
+         *
+         * @param  buf     Span, which contains the content to be put
+         *
+         * @return Boolean value indicating result of the operation.
+         */
+        auto put(std::span<const element_t> buf) -> bool{
+            return put(buf.data(), buf.size_bytes());
+        }
 
         /**
          * @brief Put given std::array's contents into circular buffer.

@@ -6,6 +6,10 @@
 #include <optional>
 #include <system_error>
 #include <utility>
+#include <expected>
+#include <span>
+#include <flatbuffers/detached_buffer.h>
+#include <flatbuffers/flatbuffer_builder.h>
 
 namespace mad::nexus {
 
@@ -22,7 +26,10 @@ namespace mad::nexus {
         registration_initialization_failed,
         configuration_initialization_failed,
         listener_initialization_failed,
-        listener_start_failed
+        listener_start_failed,
+        stream_open_failed,
+        stream_start_failed,
+        stream_insert_to_map_failed
     };
 
     struct quic_error_code_category : std::error_category {
@@ -67,6 +74,44 @@ namespace mad::nexus {
         std::uint16_t udp_port_number;
     };
 
+    struct quic_connection_handle {};
+
+    struct quic_stream_handle {};
+
+    template <typename>
+    struct quic_callback_function;
+
+    template <typename FunctionReturnType, typename... FunctionArgs>
+    struct quic_callback_function<FunctionReturnType(FunctionArgs...)> {
+        using callback_fn_t = FunctionReturnType (*)(void *, FunctionArgs...);
+        using context_ptr_t = void *;
+
+        quic_callback_function(callback_fn_t fn, context_ptr_t in) : fun_ptr(fn), ctx_ptr(in) {}
+
+        quic_callback_function()                                                 = default;
+        quic_callback_function(const quic_callback_function & other)             = default;
+        quic_callback_function(quic_callback_function && other)                  = default;
+        quic_callback_function & operator=(const quic_callback_function & other) = default;
+        quic_callback_function & operator=(quic_callback_function && other)      = default;
+
+        inline FunctionReturnType operator()(FunctionArgs &&... args) {
+            return fun_ptr(ctx_ptr, std::forward<FunctionArgs>(args)...);
+        }
+
+        callback_fn_t fun_ptr = {nullptr};
+        context_ptr_t ctx_ptr = {nullptr};
+
+        void reset() {
+            fun_ptr = nullptr;
+            ctx_ptr = nullptr;
+        }
+    };
+
+    // Deduction guide for CTAD
+    template <typename FunctionReturnType, typename... FunctionArgs>
+    quic_callback_function(FunctionReturnType (*)(void *, FunctionArgs...),
+                           void *) -> quic_callback_function<FunctionReturnType(FunctionArgs...)>;
+
     /**
      * Base class for quic server implementations. Defines the
      * basic interface.
@@ -75,16 +120,23 @@ namespace mad::nexus {
     public:
         inline quic_server(quic_server_configuration config) : cfg(config) {}
 
-        [[nodiscard]] virtual std::error_code init()   = 0;
-        [[nodiscard]] virtual std::error_code listen() = 0;
+        [[nodiscard]] virtual std::error_code init()                                                                                  = 0;
+        [[nodiscard]] virtual std::error_code listen()                                                                                = 0;
 
-        struct quic_connection_handle {};
-        struct quic_stream_handle {};
+        [[nodiscard]] virtual auto open_stream(quic_connection_handle * cctx) -> std::expected<quic_stream_handle *, std::error_code> = 0;
+        [[nodiscard]] virtual auto close_stream(quic_stream_handle * sctx) -> std::error_code                                         = 0;
+        [[nodiscard]] virtual auto send(quic_stream_handle * sctx, flatbuffers::DetachedBuffer buf) -> std::size_t                  = 0;
+
+        struct callback_function {};
 
         struct callback_table {
-            void(on_connected)(quic_connection_handle *);
-            void(on_stream_open)(quic_connection_handle *, quic_stream_handle*);
+            // TODO: Implement this!
+            quic_callback_function<void(quic_connection_handle *)> on_connected;
+            quic_callback_function<void(quic_connection_handle *)> on_disconnected;
+            quic_callback_function<void(quic_connection_handle *, quic_stream_handle *)> on_stream_open;
         } callbacks;
+
+        auto get_message_builder() -> flatbuffers::FlatBufferBuilder&;
 
         virtual ~quic_server();
 

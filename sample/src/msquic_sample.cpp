@@ -287,6 +287,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _Function_class_(QUIC_STREAM_CALLBACK) QUIC_
             // A previous StreamSend call has completed, and the context is being
             // returned back to the app.
             //
+            
             free(Event->SEND_COMPLETE.ClientContext);
             printf("[strm][%p] Data sent\n", Stream);
             break;

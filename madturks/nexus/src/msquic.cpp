@@ -1,7 +1,6 @@
 
 
-#include <fmt/base.h>
-#include <mutex>
+#include <flatbuffers/detached_buffer.h>
 #include <mad/nexus/quic.hpp>
 #include <mad/nexus/msquic.hpp>
 #include <mad/circular_buffer_vm.hpp>
@@ -13,10 +12,17 @@
 #include <filesystem>
 #include <netinet/in.h>
 #include <string_view>
+#include <system_error>
+#include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <msquic.h>
 #include <fmt/format.h>
-#include <unordered_map>
+#include <list>
+#include <map>
+#include <optional>
+#include <mutex>
 
 namespace {
 
@@ -49,6 +55,8 @@ namespace mad::nexus {
 
     struct stream_context {
 
+        using send_buffer_map_t = std::map<std::uint64_t, flatbuffers::DetachedBuffer>;
+
         /**
          * Construct a new stream context object
          *
@@ -56,9 +64,13 @@ namespace mad::nexus {
          * @param receive_buffer_size Size of the receive circular buffer.
          * @param send_buffer_size  Size of the send circular buffer.
          */
-        stream_context(HQUIC owner, std::size_t receive_buffer_size = 16384, std::size_t send_buffer_size = 16384) :
-            owning_connection(owner), receive_buffer(receive_buffer_size, circular_buffer_t::auto_align_to_page{}),
-            send_buffer(send_buffer_size, circular_buffer_t::auto_align_to_page{}) {}
+        stream_context(HQUIC stream, HQUIC owner, std::size_t receive_buffer_size = 16384) :
+            stream_handle(stream), owning_connection(owner), receive_buffer(receive_buffer_size, circular_buffer_t::auto_align_to_page{}),
+            mtx(std::make_unique<std::mutex>()) {}
+
+        inline HQUIC stream() const {
+            return stream_handle;
+        }
 
         inline HQUIC connection() const {
             return owning_connection;
@@ -72,15 +84,48 @@ namespace mad::nexus {
             return receive_buffer;
         }
 
-        inline circular_buffer_t & sbuf() {
-            return send_buffer;
+        template <typename... Args>
+        inline auto store_buffer(Args &&... args) -> std::optional<typename send_buffer_map_t::iterator> {
+
+            std::unique_lock<std::mutex> lock(*mtx);
+
+            auto result = buffers_in_flight_.emplace(send_buffer_serial, std::forward<Args>(args)...);
+
+            if (!result.second) {
+                fmt::println("insert failed somehow?");
+                return std::nullopt;
+            }
+
+            // Increase the serial for the next packet.
+            ++send_buffer_serial;
+            fmt::println("new serial {}", send_buffer_serial);
+
+            return std::optional{result.first};
         }
 
-        inline const circular_buffer_t & sbuf() const {
-            return send_buffer;
+        /**
+         * Release a send buffer from in-flight buffer map.
+         *
+         * @param key The key of the buffer, previously obtained from
+         *            the store_buffer(...) call.
+         *
+         * @return true when release successful
+         * @return false otherwise
+         */
+        inline auto release_buffer(std::uint64_t key) -> bool {
+            std::unique_lock<std::mutex> lock(*mtx);
+            return buffers_in_flight_.erase(key) > 0;
+        }
+
+        auto in_flight_count() const {
+            return buffers_in_flight_.size();
         }
 
     private:
+        /**
+         * Msquic stream handle
+         */
+        HQUIC stream_handle;
         /**
          * The connection that stream belongs to.
          */
@@ -88,14 +133,17 @@ namespace mad::nexus {
         /**
          * Data received from the stream
          * will go into this buffer.
+         *
+         * We don't need to protect the receive buffer
+         * as all received stream data for a specific
+         * connection guaranteed to happen serially.
          */
         circular_buffer_t receive_buffer;
 
-        /**
-         * Data being sent is queued in this buffer.
-         * MSQUIC layer is going to consume it.
-         */
-        circular_buffer_t send_buffer;
+        std::unique_ptr<std::mutex> mtx;
+        std::uint64_t send_buffer_serial = {0};
+
+        std::map<std::uint64_t, flatbuffers::DetachedBuffer> buffers_in_flight_;
     };
 
     // Stream contexts are going to be stored in connection context.
@@ -342,39 +390,55 @@ namespace mad::nexus {
     /**
      * Opaque to impl.
      */
-    inline msquic_ctx & o2i(std::shared_ptr<void> & ptr) {
+    inline msquic_ctx & o2i(const std::shared_ptr<void> & ptr) {
         return *static_cast<msquic_ctx *>(ptr.get());
     }
 
-    static QUIC_STATUS ServerStreamCallback([[maybe_unused]] HQUIC stream, [[maybe_unused]] void * context,
-                                            [[maybe_unused]] QUIC_STREAM_EVENT * event) {
-        auto ctx = static_cast<connection_context *>(context);
-        assert(ctx);
+    static QUIC_STATUS ServerStreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
+        // FIXME: This should be stream_context!
+        assert(context);
+        auto & sctx = *static_cast<stream_context *>(context);
 
         // we can use the connection as context here?
         switch (event->Type) {
+            case QUIC_STREAM_EVENT_SEND_COMPLETE: {
+                //
+                // A previous StreamSend call has completed, and the context is being
+                // returned back to the app.
+                //
+                fmt::println("data sent to stream %d", event->SEND_COMPLETE.ClientContext);
+                auto key = reinterpret_cast<std::uint64_t>(event->SEND_COMPLETE.ClientContext);
+
+                if (sctx.release_buffer(key)) {
+                    fmt::println("send buffer with key {} erased from in-flight, {} remaining.", key, sctx.in_flight_count());
+
+                } else {
+                    fmt::println("send buffer with key {} not found in map!!!", key);
+                }
+
+            } break;
+
             case QUIC_STREAM_EVENT_RECEIVE: {
 
-                if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
-                    fmt::println("received data from stream {} but stream is not present in connection!", static_cast<void *>(stream));
-                } else {
-                    auto & stream_ctx = itr->second;
-
-                    for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
-                        stream_ctx.rbuf().put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
-                    }
-                    fmt::println("total {}", stream_ctx.rbuf().consumed_space());
+                for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
+                    sctx.rbuf().put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
                 }
+                fmt::println("total {}", sctx.rbuf().consumed_space());
+
                 fmt::println("Received data from the remote count:{} total_size:{}", event->RECEIVE.BufferCount,
                              event->RECEIVE.TotalBufferLength);
 
             } break;
 
             case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE: {
-                if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
-                    fmt::println("stream shutdown");
-                    ctx->streams.erase(itr);
-                }
+                std::stringstream aq;
+                aq << std::this_thread::get_id();
+                fmt::println("stream shutdown from thread {}", aq.str());
+                // FIXME: Fix this::::
+                // if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
+                //     fmt::println("stream shutdown");
+                //     ctx->streams.erase(itr);
+                // }
             } break;
         }
 
@@ -392,13 +456,14 @@ namespace mad::nexus {
     */
 
     static QUIC_STATUS ServerConnectionCallback(HQUIC connection, void * context, QUIC_CONNECTION_EVENT * event) {
-        auto ctx = static_cast<msquic_ctx *>(context);
-        assert(ctx);
+        assert(context);
+        auto & server        = *static_cast<msquic_server *>(context);
+        auto & msquic_ctx    = o2i(server.msquic_impl());
 
         QUIC_ADDR_STR remote = [&]() {
             QUIC_ADDR remote_addr;
             std::uint32_t addr_size = sizeof(QUIC_ADDR);
-            ctx->api->GetParam(connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
+            msquic_ctx.api->GetParam(connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
             QUIC_ADDR_STR str;
             QuicAddrToString(&remote_addr, &str);
             return str;
@@ -409,31 +474,36 @@ namespace mad::nexus {
                 // TODO: Invoke a callback to indicate that a new connection has been established?
                 fmt::println("New client connected: {}", remote.Address);
 
-                auto wa = ctx->connection_map.exclusive_access();
+                auto wa = msquic_ctx.connection_map.exclusive_access();
                 if (auto itr = wa->find(connection); itr == wa->end()) {
                     auto result = wa->emplace(connection, connection_context{connection, {}});
                     if (!result.second) {
                         fmt::println("connection could not be stored!");
-                        ctx->api->ConnectionClose(connection);
+                        msquic_ctx.api->ConnectionClose(connection);
                         return QUIC_STATUS_SUCCESS;
                     }
-                    ctx->api->ConnectionSendResumptionTicket(connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
+                    msquic_ctx.api->ConnectionSendResumptionTicket(connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
+                    server.callbacks.on_connected(reinterpret_cast<mad::nexus::quic_connection_handle *>(&result.first->second));
+
                 } else {
                     fmt::println("duplicate connection event for connection {}!", static_cast<void *>(connection));
                 }
             } break;
             case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
 
-                auto wa = ctx->connection_map.exclusive_access();
+                
+                auto wa = msquic_ctx.connection_map.exclusive_access();
                 if (auto itr = wa->find(connection); itr == wa->end()) {
                     fmt::println("connection shutdown complete but no such connection in map!");
                 } else {
                     fmt::println("Removed connection from the connection map");
+                    server.callbacks.on_disconnected(reinterpret_cast<mad::nexus::quic_connection_handle *>(&itr->second));
                     wa->erase(itr);
                 }
                 fmt::println("Connection shutdown complete {}", remote.Address);
 
-                ctx->api->ConnectionClose(connection);
+                
+                msquic_ctx.api->ConnectionClose(connection);
             } break;
 
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
@@ -448,14 +518,19 @@ namespace mad::nexus {
             } break;
 
             case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
-                auto ra = ctx->connection_map.shared_access();
+                // This will not happen in server scenario as we will not allow
+                // client initiated streams.
+                auto ra = msquic_ctx.connection_map.shared_access();
                 fmt::println("New stream {} by connection {}", static_cast<void *>(event->PEER_STREAM_STARTED.Stream),
                              static_cast<void *>(connection));
                 if (auto itr = ra->find(connection); !(itr == ra->end())) {
                     // Create new stream
-                    itr->second.streams.emplace(event->PEER_STREAM_STARTED.Stream, stream_context{connection});
-                    ctx->api->SetCallbackHandler(event->PEER_STREAM_STARTED.Stream, reinterpret_cast<void *>(ServerStreamCallback),
-                                                 &itr->second);
+                    // TODO: Check emplace result
+                    auto result = itr->second.streams.emplace(event->PEER_STREAM_STARTED.Stream,
+                                                              stream_context{event->PEER_STREAM_STARTED.Stream, connection});
+
+                    msquic_ctx.api->SetCallbackHandler(event->PEER_STREAM_STARTED.Stream, reinterpret_cast<void *>(ServerStreamCallback),
+                                                       &result.first->second);
 
                 } else {
                     fmt::println("Client tried to initiate stream but associated connection not found!");
@@ -472,8 +547,9 @@ namespace mad::nexus {
 
     static QUIC_STATUS ServerListenerCallback([[maybe_unused]] HQUIC Listener, void * context, QUIC_LISTENER_EVENT * Event) {
 
-        auto ctx = static_cast<msquic_ctx *>(context);
-        assert(ctx);
+        assert(context);
+        auto & server     = *static_cast<msquic_server *>(context);
+        auto & msquic_ctx = o2i(server.msquic_impl());
 
         fmt::println("ServerListenerCallback() - Event Type: `{}`", static_cast<int>(Event->Type));
 
@@ -483,8 +559,9 @@ namespace mad::nexus {
                 // A new connection is being attempted by a client. For the handshake to
                 // proceed, the server must provide a configuration for QUIC to use. The
                 // app MUST set the callback handler before returning.
-                ctx->api->SetCallbackHandler(Event->NEW_CONNECTION.Connection, reinterpret_cast<void *>(ServerConnectionCallback), context);
-                return ctx->api->ConnectionSetConfiguration(Event->NEW_CONNECTION.Connection, ctx->configuration.get());
+                msquic_ctx.api->SetCallbackHandler(Event->NEW_CONNECTION.Connection, reinterpret_cast<void *>(ServerConnectionCallback),
+                                                   &server);
+                return msquic_ctx.api->ConnectionSetConfiguration(Event->NEW_CONNECTION.Connection, msquic_ctx.configuration.get());
             }
             case QUIC_LISTENER_EVENT_STOP_COMPLETE:
                 break;
@@ -514,7 +591,96 @@ namespace mad::nexus {
             return quic_error_code::uninitialized;
         }
 
-        return o2i(pimpl).listen(cfg.udp_port_number, cfg.alpn, ServerListenerCallback, pimpl.get());
+        return o2i(pimpl).listen(cfg.udp_port_number, cfg.alpn, ServerListenerCallback, this);
+    }
+
+    auto msquic_server::open_stream(quic_connection_handle * chandle) -> std::expected<quic_stream_handle *, std::error_code> {
+        assert(chandle);
+
+        // TODO: Thread safety?
+
+        auto & cctx      = *reinterpret_cast<connection_context *>(chandle);
+
+        HQUIC new_stream = nullptr;
+        auto & api       = o2i(pimpl).api;
+
+        if (auto status = api->StreamOpen(cctx.connection, QUIC_STREAM_OPEN_FLAG_NONE, ServerStreamCallback, nullptr, &new_stream);
+            QUIC_FAILED(status)) {
+            fmt::println("stream open failed with {}", status);
+            return std::unexpected(quic_error_code::stream_open_failed);
+        }
+
+        auto [itr, inserted] = cctx.streams.emplace(new_stream, stream_context{new_stream, cctx.connection});
+        if (!inserted) {
+            return std::unexpected(quic_error_code::stream_insert_to_map_failed);
+        }
+
+        auto & stream_context = itr->second;
+
+        // Set context for the callback.
+        api->SetContext(new_stream, static_cast<void *>(&stream_context));
+        if (auto status = api->StreamStart(new_stream, QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL); QUIC_FAILED(status)) {
+            fmt::println("stream start failed with {}", status);
+            cctx.streams.erase(itr);
+            return std::unexpected(quic_error_code::stream_start_failed);
+        }
+
+        return reinterpret_cast<quic_stream_handle *>(&stream_context);
+    }
+
+    auto msquic_server::close_stream([[maybe_unused]] quic_stream_handle * shandle) -> std::error_code {
+
+        // FIXME: Implement this
+        return quic_error_code::success;
+    }
+
+    auto msquic_server::send(quic_stream_handle * shandle, flatbuffers::DetachedBuffer buf) -> std::size_t {
+        assert(shandle);
+        auto & sctx       = *reinterpret_cast<stream_context *>(shandle);
+        auto & api        = o2i(pimpl).api;
+
+        // This function is used to queue data on a stream to be sent.
+        // The function itself is non-blocking and simply queues the data and returns.
+        // The app may pass zero or more buffers of data that will be sent on the stream in the order they are passed.
+        // The buffers (both the QUIC_BUFFERs and the memory they reference) are "owned" by MsQuic (and must not be modified by the app)
+        // until MsQuic indicates the QUIC_STREAM_EVENT_SEND_COMPLETE event for the send.
+
+        // We have 16 bytes of reserved space at the beginning of 'buf'
+        // We're gonna use it for storing QUIC_BUF.
+
+        // The address used as key is not important.
+
+        auto store_result = sctx.store_buffer(std::move(buf));
+        if (!store_result) {
+            fmt::println("could not store packet data for send!");
+            return 0;
+        }
+        auto itr      = store_result.value();
+
+        // auto emplace_result = sctx.buffers_in_flight().emplace(reinterpret_cast<std::uint64_t>(&buf), std::move(buf));
+        // {
+        //     // Extract the node to update its key to the address of the value (DetachedBuffer)
+        //     auto node  = sctx.buffers_in_flight().extract(itr);
+        //     // Update the key to be the address of the value (DetachedBuffer)
+        //     node.key() = reinterpret_cast<std::uint64_t>(&node.mapped());
+        //     // FIXME: Check insert result
+        //     sctx.buffers_in_flight().insert(std::move(node));
+        // }
+
+        auto & buffer = itr->second;
+
+        fmt::println("sending {} bytes of data", buffer.size());
+        QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(const_cast<std::uint8_t *>(buffer.data()));
+        qbuf->Buffer       = reinterpret_cast<std::uint8_t *>(qbuf + sizeof(QUIC_BUFFER));
+        qbuf->Length       = static_cast<std::uint32_t>(buffer.size() - sizeof(QUIC_BUFFER));
+
+        // We're using the context pointer here to store the key.
+        if (auto status = api->StreamSend(sctx.stream(), qbuf, 1, QUIC_SEND_FLAG_NONE, reinterpret_cast<void *>(itr->first));
+            QUIC_FAILED(status)) {
+            return 0;
+        }
+        // FIXME:
+        return buf.size() - sizeof(QUIC_BUFFER);
     }
 
 } // namespace mad::nexus

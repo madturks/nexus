@@ -254,3 +254,5 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/c++,meson,conan,python
 
 tgt/
+*.capnp.c++
+*.capnp.h

@@ -8,7 +8,13 @@ nexus = declare_dependency(
         ],
         include_directories: include_directories('include'),
         install: true,
-        dependencies: [msquic, fmt, madturks_core_container, madturks_core_concurrency],
+        dependencies: [
+            madturks_core_container,
+            madturks_core_concurrency,
+            msquic,
+            flatbuffers,
+            fmt,
+        ],
     ),
     include_directories: include_directories('include'),
 )

@@ -33,6 +33,12 @@ namespace mad::nexus {
                 return "Listener object initialization failed. Check implementation-specific error code.";
             case listener_start_failed:
                 return "Listener could not be started. Check implementation-specific error code.";
+            case stream_open_failed:
+                return "Stream open failed.";
+            case stream_start_failed:
+                return "Stream start failed.";
+            case stream_insert_to_map_failed:
+                return "Stream insert to map failed.";
         }
 
         std::unreachable();

@@ -1,22 +1,114 @@
+#include <flatbuffers/default_allocator.h>
+#include <flatbuffers/detached_buffer.h>
+#include <flatbuffers/flatbuffer_builder.h>
+#include <mad/nexus/quic.hpp>
 #include <mad/nexus/msquic.hpp>
 
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <chrono>
+#include <unordered_map>
 
 #include <fmt/format.h>
+#include <flatbuffers/flatbuffers.h>
+#include <fbs-schemas/main_generated.h>
+#include <thread>
+#include <atomic>
+
+std::atomic_bool stop;
+static std::vector<std::thread> threads;
+
+static std::unordered_map<std::string, mad::nexus::quic_stream_handle *> streams;
+static std::string message = "hello from the other side";
+
+static void test_loop(mad::nexus::quic_server & server) {
+
+    for (auto & [str, stream] : streams) {
+        auto & fbb = server.get_message_builder();
+        auto v     = mad::schemas::Vec3(1, 2, 3);
+        auto o     = mad::schemas::CreateMonster(fbb, &v, 150, 80);
+        fbb.Finish(o);
+        auto a = fbb.Release();
+        server.send(stream, std::move(a));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+}
+
+// static void (onsend)
+
+static void server_on_connected(void * ctx, mad::nexus::quic_connection_handle * chandle) {
+    assert(chandle);
+    assert(ctx);
+
+    fmt::println("app received new connection!");
+
+    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(ctx);
+    stop.store(false);
+
+    for (int i = 0; i < 10; i++) {
+        auto & fbb = quic_server.get_message_builder();
+        auto v     = mad::schemas::Vec3(1, 2, 3);
+        auto o     = mad::schemas::CreateMonster(fbb, &v, 150, 80);
+        fbb.Finish(o);
+        auto a = fbb.Release();
+
+        // fbb.ReleaseRaw(, )
+        // flatbuffers::DefaultAllocator().deallocate(uint8_t *p, size_t)
+        // fbb.ReleaseRaw(size_t &size, size_t &offset)
+        // fbb.
+
+        if (auto r = quic_server.open_stream(chandle); !r) {
+            fmt::println("server_on_connected -- stream open failed: {}!", r.error().message());
+            continue;
+        } else {
+            streams.emplace("stream_" + std::to_string(i), r.value());
+            if (!quic_server.send(r.value(), std::move(a))) {
+                fmt::println("could not send msg!");
+            }
+        }
+    }
+
+    for (int i = 0; i < 10; i++) {
+
+        std::thread thr{[&]() {
+            while (!stop.load())
+                test_loop(quic_server);
+        }};
+        threads.push_back(std::move(thr));
+    }
+}
+
+static void server_on_disconnected(void * ctx, mad::nexus::quic_connection_handle * chandle) {
+    assert(chandle);
+    assert(ctx);
+
+    fmt::println("app received disconnection !");
+
+    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(ctx);
+    stop.store(true);
+    for (auto & thr : threads) {
+        thr.join();
+    }
+    threads.clear();
+    streams.clear();
+}
 
 int main(void) {
     fmt::println("{}", __cplusplus);
 
     mad::nexus::quic_server_configuration cfg;
-    cfg.alpn                         = "test";
-    cfg.credentials.certificate_path = "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
-    cfg.credentials.private_key_path = "/workspaces/nexus/vendor/msquic/test-cert/server.key";
-    cfg.idle_timeout                 = std::chrono::milliseconds{10000};
-    cfg.udp_port_number              = 6666;
-    auto server                      = mad::nexus::msquic_server::make(cfg);
+    cfg.alpn                          = "test";
+    cfg.credentials.certificate_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
+    cfg.credentials.private_key_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.key";
+    cfg.idle_timeout                  = std::chrono::milliseconds{10000};
+    cfg.udp_port_number               = 6666;
+    auto server                       = mad::nexus::msquic_server::make(cfg);
+
+    server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};
+    server->callbacks.on_disconnected = mad::nexus::quic_callback_function{&server_on_disconnected, server.get()};
+    //
+    // server->callbacks.on_connected = ;
 
     if (auto r = server->init(); !mad::nexus::successful(r)) {
         fmt::println("QUIC server initialization failed: {}, {}", r.value(), r.message());
@@ -32,3 +124,6 @@ int main(void) {
     fmt::println("Press any key to stop.");
     getchar();
 }
+
+// Continue from here:
+// Implement connection callback for server, then initiate a couple streams.

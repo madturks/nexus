@@ -8,7 +8,7 @@ class Nexus(ConanFile):
     def requirements(self):
         self.requires("spdlog/1.14.1")
         self.requires("fmt/11.0.2", override=True)
-        self.requires("capnproto/1.0.2")
+        self.requires("flatbuffers/24.3.25")
         self.requires("stduuid/1.2.3")
 
     def build_requirements(self):
