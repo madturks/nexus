@@ -1,4 +1,4 @@
-#include <mad/nexus/quic.hpp>
+#include <mad/nexus/quic_error_code.hpp>
 
 namespace mad::nexus {
     const char * quic_error_code_category::name() const noexcept {

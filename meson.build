@@ -66,6 +66,7 @@ spdlog = dependency('spdlog', include_type: 'system')
 gtest = dependency('gtest', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
+abseil = dependency('abseil', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')
@@ -73,17 +74,14 @@ flatc_compiler = files(flatbuffers_bindir + '/flatc')
 meson.override_find_program('flatc', flatc_compiler)
 flatc = find_program('flatc')
 
-fbs_schemas = [
-    'sample/flatbuffers_schemas/main.fbs'
-]
+fbs_schemas = ['sample/flatbuffers_schemas/main.fbs']
 
 # Compile the flatbuffers schemas.
 run_command(
     flatc.full_path(),
     '--cpp',
     '--scoped-enums',
-    '-o', 
-    '@0@/fbs-schemas/include/fbs-schemas'.format(meson.current_build_dir()),
+    '-o', '@0@/fbs-schemas/include/fbs-schemas'.format(meson.current_build_dir()),
 
     fbs_schemas,
     # capnp compile needs to locate `capnpc-c++` plugin
@@ -122,6 +120,12 @@ subdir('madturks/nexus')
 executable(
     'msquic-test-server',
     'sample/src/msquic_test_server.cpp',
+    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
+)
+
+executable(
+    'msquic-test-client',
+    'sample/src/msquic_test_client.cpp',
     dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
 )
 

@@ -160,19 +160,13 @@ namespace mad {
         struct const_wrapper {};
 
         template <typename ResourceType>
-        using const_read_accessor = accessor<read_lock, const ResourceType &>;
+        using shared_accessor = accessor<read_lock, const ResourceType &>;
 
         template <typename ResourceType>
-        using read_accessor = accessor<read_lock, ResourceType &>;
+        using mutable_shared_accessor = accessor<read_lock, ResourceType &>;
 
         template <typename ResourceType>
-        using write_accessor = accessor<write_lock, ResourceType &>;
-
-        template <typename ResourceType>
-        using unsafe_read_accessor = unsafe_accessor<ResourceType &>;
-
-        template <typename ResourceType>
-        using unsafe_write_accessor = unsafe_accessor<ResourceType &>;
+        using exclusive_accessor = accessor<write_lock, ResourceType &>;
 
     } // namespace detail
 
@@ -188,34 +182,32 @@ namespace mad {
 
     /**
      * @brief This class wraps a resource, and exposes accessors only as an interface.
-     * The only way to access the underlying resource is, through the accessors. The accessors
-     * which are not prefixed with `unsafe_` are all thread-safe and all concurrent operations
-     * related to them can be executed safely.
+     * The only way to access the underlying resource is, through the accessors.
      *
      * @tparam ResourceType Resource type to wrap
      */
     template <typename ResourceType>
     struct concurrent : lockable<> {
     public:
-        using read_accessor_t         = detail::read_accessor<ResourceType>;
-        using const_read_accessor_t   = detail::const_read_accessor<ResourceType>;
-        using write_accessor_t        = detail::write_accessor<ResourceType>;
-        using unsafe_read_accessor_t  = detail::unsafe_read_accessor<ResourceType>;
-        using unsafe_write_accessor_t = detail::unsafe_write_accessor<ResourceType>;
+        using shared_accessor_t         = detail::shared_accessor<ResourceType>;
+        using mutable_shared_accessor_t = detail::mutable_shared_accessor<ResourceType>;
+        using exclusive_accessor_t      = detail::exclusive_accessor<ResourceType>;
 
         /**
-         * @brief Grab a shared_lock and grant read-only access to the resource.
+         * @brief Grab shared_lock and grant access to the resource.
+         *
+         * Note that this is not
          */
-        const_read_accessor_t ro_shared_access() const noexcept {
+        shared_accessor_t shared_access() const noexcept {
             return {resource, rwlock};
         }
 
         /**
          * @brief Grab shared_lock and grant access to the resource.
          *
-         * Note that this is not 
+         * Note that this is not
          */
-        read_accessor_t shared_access() noexcept {
+        mutable_shared_accessor_t mutable_shared_access() noexcept {
             return {resource, rwlock};
         }
 
@@ -223,7 +215,7 @@ namespace mad {
          * @brief Grab an exclusive lock. All subsequent read-write access requests
          * will wait until the grabbed write access object is released.
          */
-        write_accessor_t exclusive_access() noexcept {
+        exclusive_accessor_t exclusive_access() noexcept {
             return {resource, rwlock};
         }
 

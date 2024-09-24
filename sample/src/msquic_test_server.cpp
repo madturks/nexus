@@ -1,8 +1,12 @@
+#include "mad/nexus/quic_connection_context.hpp"
+#include "mad/nexus/quic_stream_context.hpp"
 #include <flatbuffers/default_allocator.h>
 #include <flatbuffers/detached_buffer.h>
 #include <flatbuffers/flatbuffer_builder.h>
-#include <mad/nexus/quic.hpp>
-#include <mad/nexus/msquic.hpp>
+#include <fmt/base.h>
+#include <mad/nexus/quic_server.hpp>
+#include <mad/nexus/msquic/msquic_server.hpp>
+#include <mad/nexus/quic_error_code.hpp>
 
 #include <cassert>
 #include <cstddef>
@@ -19,7 +23,7 @@
 std::atomic_bool stop;
 static std::vector<std::thread> threads;
 
-static std::unordered_map<std::string, mad::nexus::quic_stream_handle *> streams;
+static std::unordered_map<std::string, mad::nexus::stream_context *> streams;
 static std::string message = "hello from the other side";
 
 static void test_loop(mad::nexus::quic_server & server) {
@@ -32,18 +36,21 @@ static void test_loop(mad::nexus::quic_server & server) {
         auto a = fbb.Release();
         server.send(stream, std::move(a));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
 }
 
-// static void (onsend)
+static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
+    fmt::println("app_stream_data_received: received {} byte(s)", buf.size_bytes());
+    return 0;
+}
 
-static void server_on_connected(void * ctx, mad::nexus::quic_connection_handle * chandle) {
-    assert(chandle);
-    assert(ctx);
+static void server_on_connected(void * uctx, mad::nexus::connection_context * cctx) {
+    assert(cctx);
+    assert(uctx);
 
     fmt::println("app received new connection!");
 
-    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(ctx);
+    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
     stop.store(false);
 
     for (int i = 0; i < 10; i++) {
@@ -53,12 +60,7 @@ static void server_on_connected(void * ctx, mad::nexus::quic_connection_handle *
         fbb.Finish(o);
         auto a = fbb.Release();
 
-        // fbb.ReleaseRaw(, )
-        // flatbuffers::DefaultAllocator().deallocate(uint8_t *p, size_t)
-        // fbb.ReleaseRaw(size_t &size, size_t &offset)
-        // fbb.
-
-        if (auto r = quic_server.open_stream(chandle); !r) {
+        if (auto r = quic_server.open_stream(cctx, mad::nexus::stream_data_callback_t{&app_stream_data_received, nullptr}); !r) {
             fmt::println("server_on_connected -- stream open failed: {}!", r.error().message());
             continue;
         } else {
@@ -79,13 +81,13 @@ static void server_on_connected(void * ctx, mad::nexus::quic_connection_handle *
     }
 }
 
-static void server_on_disconnected(void * ctx, mad::nexus::quic_connection_handle * chandle) {
-    assert(chandle);
-    assert(ctx);
+static void server_on_disconnected(void * uctx, mad::nexus::connection_context * cctx) {
+    assert(cctx);
+    assert(uctx);
 
     fmt::println("app received disconnection !");
 
-    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(ctx);
+    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
     stop.store(true);
     for (auto & thr : threads) {
         thr.join();
@@ -97,7 +99,7 @@ static void server_on_disconnected(void * ctx, mad::nexus::quic_connection_handl
 int main(void) {
     fmt::println("{}", __cplusplus);
 
-    mad::nexus::quic_server_configuration cfg;
+    mad::nexus::quic_configuration cfg;
     cfg.alpn                          = "test";
     cfg.credentials.certificate_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
     cfg.credentials.private_key_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.key";
@@ -124,6 +126,3 @@ int main(void) {
     fmt::println("Press any key to stop.");
     getchar();
 }
-
-// Continue from here:
-// Implement connection callback for server, then initiate a couple streams.

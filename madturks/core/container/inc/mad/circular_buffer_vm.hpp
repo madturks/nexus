@@ -252,7 +252,7 @@ namespace mad {
          *
          * @return Boolean value indicating result of the operation.
          */
-        auto put(std::span<const element_t> buf) -> bool{
+        auto put(std::span<const element_t> buf) -> bool {
             return put(buf.data(), buf.size_bytes());
         }
 
@@ -320,6 +320,13 @@ namespace mad {
         template <size_t Size>
         inline auto peek(std::array<element_t, Size> & buffer) -> bool {
             return peek(buffer.data(), buffer.size());
+        }
+
+        /**
+         * Return the consumed space.
+         */
+        std::span<const std::uint8_t> available_span() const {
+            return std::span<const std::uint8_t>{native_buffer_.get() + head_, consumed_space()};
         }
 
         /**
