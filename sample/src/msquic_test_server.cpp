@@ -1,3 +1,4 @@
+#include "mad/nexus/quic_base.hpp"
 #include "mad/nexus/quic_connection_context.hpp"
 #include "mad/nexus/quic_stream_context.hpp"
 #include <flatbuffers/default_allocator.h>
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <chrono>
+#include <span>
 #include <unordered_map>
 
 #include <fmt/format.h>
@@ -26,15 +28,13 @@ static std::vector<std::thread> threads;
 static std::unordered_map<std::string, mad::nexus::stream_context *> streams;
 static std::string message = "hello from the other side";
 
-static void test_loop(mad::nexus::quic_server & server) {
+static void test_loop(mad::nexus::quic_server & quic_server) {
 
     for (auto & [str, stream] : streams) {
-        auto & fbb = server.get_message_builder();
-        auto v     = mad::schemas::Vec3(1, 2, 3);
-        auto o     = mad::schemas::CreateMonster(fbb, &v, 150, 80);
-        fbb.Finish(o);
-        auto a = fbb.Release();
-        server.send(stream, std::move(a));
+        quic_server.send(stream, quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
+            mb.add_hp(150);
+            mb.add_mana(80);
+        }));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
 }
@@ -60,17 +60,12 @@ static void server_on_connected(void * uctx, mad::nexus::connection_context * cc
         } else {
             streams.emplace("stream_" + std::to_string(i), r.value());
 
-           // flatbuffers::DefaultAllocator::dealloc((void *p), size_t)
+            auto msg = quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
+                mb.add_hp(12);
+                mb.add_mana(5);
+            });
 
-            flatbuffers::FlatBufferBuilder fbb;
-            mad::schemas::MonsterBuilder mb(fbb);
-            mb.add_hp(12);
-            mb.add_mana(5);
-            auto obj = mb.Finish();
-            fbb.Finish(obj);
-            auto a = fbb.Release();
-           // fbb.ReleaseRaw(size_t &size, size_t &offset)
-            if (!quic_server.send(r.value(), std::move(a))) {
+            if (!quic_server.send(r.value(), std::move(msg))) {
                 fmt::println("could not send msg!");
             }
         }

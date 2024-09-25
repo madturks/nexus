@@ -16,7 +16,7 @@ namespace mad::nexus {
             -> std::expected<stream_context *, std::error_code> override final;
 
         [[nodiscard]] virtual auto close_stream(stream_context * sctx) -> std::error_code override final;
-        [[nodiscard]] virtual auto send(stream_context * sctx, flatbuffers::DetachedBuffer buf) -> std::size_t override final;
+        [[nodiscard]] virtual auto send(stream_context * sctx, send_buffer buf) -> std::size_t override final;
 
         virtual ~msquic_base() override;
 

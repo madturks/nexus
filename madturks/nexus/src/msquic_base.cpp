@@ -1,3 +1,5 @@
+#include <flatbuffers/default_allocator.h>
+#include <flatbuffers/detached_buffer.h>
 #include <mad/nexus/msquic/msquic_base.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
@@ -54,15 +56,10 @@ namespace mad::nexus {
                 // returned back to the app.
                 //
                 fmt::println("data sent to stream %d", event->SEND_COMPLETE.ClientContext);
-                auto key = reinterpret_cast<std::uint64_t>(event->SEND_COMPLETE.ClientContext);
 
-                if (sctx.release_buffer(key)) {
-                    fmt::println("send buffer with key {} erased from in-flight, {} remaining.", key, sctx.in_flight_count());
-
-                } else {
-                    fmt::println("send buffer with key {} not found in map!!!", key);
-                }
-
+                // The size does not matter for the default allocator.
+                // FIXME: Get this dynamically from the user
+                flatbuffers::DefaultAllocator::dealloc(event->SEND_COMPLETE.ClientContext, 0);
             } break;
 
             case QUIC_STREAM_EVENT_RECEIVE: {
@@ -159,10 +156,10 @@ namespace mad::nexus {
         return quic_error_code::success;
     }
 
-    auto msquic_base::send(stream_context * sctx, flatbuffers::DetachedBuffer buf) -> std::size_t {
+    auto msquic_base::send(stream_context * sctx, send_buffer buf) -> std::size_t {
         assert(sctx);
 
-        auto & api        = o2i(msquic_pimpl).api;
+        auto & api = o2i(msquic_pimpl).api;
 
         // This function is used to queue data on a stream to be sent.
         // The function itself is non-blocking and simply queues the data and returns.
@@ -173,33 +170,20 @@ namespace mad::nexus {
         // We have 16 bytes of reserved space at the beginning of 'buf'
         // We're gonna use it for storing QUIC_BUF.
 
-        // The address used as key is not important.
+        fmt::println("sending {} bytes of data", buf.used);
 
-        auto store_result = sctx->store_buffer(std::move(buf));
-        if (!store_result) {
-            fmt::println("could not store packet data for send!");
-            return 0;
-        }
-        auto itr      = store_result.value();
-        auto & buffer = itr->second;
-
-        fmt::println("sending {} bytes of data", buffer.size());
-
-        QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(buffer.data());
-        qbuf->Buffer       = reinterpret_cast<std::uint8_t *>(buffer.data() + sizeof(QUIC_BUFFER));
-        qbuf->Length       = static_cast<std::uint32_t>(buffer.size() - sizeof(QUIC_BUFFER));
+        QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(buf.buf + buf.offset);
+        qbuf->Buffer       = reinterpret_cast<std::uint8_t *>(buf.buf + buf.offset + sizeof(QUIC_BUFFER));
+        qbuf->Length       = static_cast<std::uint32_t>(buf.used - sizeof(QUIC_BUFFER));
 
         // We're using the context pointer here to store the key.
-        if (auto status =
-                api->StreamSend(static_cast<HQUIC>(sctx->stream()), qbuf, 1, QUIC_SEND_FLAG_NONE, reinterpret_cast<void *>(itr->first));
-            QUIC_FAILED(status)) {
-
+        if (auto status = api->StreamSend(static_cast<HQUIC>(sctx->stream()), qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf); QUIC_FAILED(status)) {
             return 0;
         }
 
         // fmt::println("sent, queue size {}", sctx->in_flight_count());
         // FIXME:
-        return buf.size() - sizeof(QUIC_BUFFER);
+        return buf.used - sizeof(QUIC_BUFFER);
     }
 
 } // namespace mad::nexus
