@@ -52,7 +52,7 @@ namespace mad::nexus {
             buf.used = fbb.GetSize();
             buf.buf  = fbb.ReleaseRaw(buf.buf_size, buf.offset);
             return buf;
-        };
+        }
 
         auto get_message_builder() -> flatbuffers::FlatBufferBuilder &;
 

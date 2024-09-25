@@ -22,7 +22,7 @@
 
 // proj
 #include <mad/circular_buffer_base.hpp>
-#include <mad/has_assign.hpp>
+#include <mad/concepts>
 // xproj
 
 // cppstd

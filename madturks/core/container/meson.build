@@ -17,19 +17,17 @@ madturks_core_container = declare_dependency(
 common_circular_buffer_ut = executable(
     'ut-madturks-core-container-circular-buffer',
     'tests/unit/ut_circular_buffer.cpp',
-    dependencies: [madturks_core_algorithm, madturks_core_container, gtest],
+    dependencies: [madturks_core_random, madturks_core_container, gtest],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
     # override_options: ['b_sanitize=address'],
 )
 
 test('Circular Buffer unit tests', common_circular_buffer_ut)
 
-
-
 common_circular_buffer_benchmark = executable(
     'bench-madturks-core-container-circular-buffer',
     'tests/benchmark/circular_buffer_bench.cpp',
-    dependencies: [madturks_core_algorithm, madturks_core_container, gbench],
+    dependencies: [madturks_core_random, madturks_core_container, gbench],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
 )
 

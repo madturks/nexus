@@ -1,0 +1,9 @@
+#pragma once
+
+#include <mad/concept/has_assign.hpp>
+#include <mad/concept/has_begin_end.hpp>
+#include <mad/concept/has_binary_insert.hpp>
+#include <mad/concept/has_key_type.hpp>
+#include <mad/concept/has_push_back.hpp>
+#include <mad/concept/has_unary_insert.hpp>
+#include <mad/concept/has_value_type.hpp>

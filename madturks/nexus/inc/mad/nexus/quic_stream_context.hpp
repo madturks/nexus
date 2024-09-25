@@ -15,16 +15,17 @@ namespace mad::nexus {
          * @param receive_buffer_size Size of the receive circular buffer.
          * @param send_buffer_size  Size of the send circular buffer.
          */
-        stream_context(void * stream, void * owner, stream_data_callback_t data_callback, std::size_t receive_buffer_size = 16384) :
-            stream_handle(stream), connection_handle(owner), on_data_received(data_callback),
+        stream_context(void * hstream, connection_context & cctx, stream_data_callback_t data_callback,
+                       std::size_t receive_buffer_size = 16384) :
+            stream_handle_(hstream), connection_context_(cctx), on_data_received(data_callback),
             receive_buffer(receive_buffer_size, circular_buffer_t::auto_align_to_page{}) {}
 
         inline void * stream() const {
-            return stream_handle;
+            return stream_handle_;
         }
 
-        inline void * connection() const {
-            return connection_handle;
+        inline connection_context & connection() const {
+            return connection_context_;
         }
 
         inline circular_buffer_t & rbuf() {
@@ -39,12 +40,12 @@ namespace mad::nexus {
         /**
          * Msquic stream handle
          */
-        void * stream_handle;
+        void * stream_handle_;
 
         /**
          * The connection that stream belongs to.
          */
-        void * connection_handle;
+        connection_context & connection_context_;
 
     public:
         stream_data_callback_t on_data_received;

@@ -22,7 +22,7 @@
 #include <mad/circular_buffer.hpp>
 #include <mad/circular_buffer_vm.hpp>
 #include <mad/circular_buffer_pow2.hpp>
-#include <mad/bytegen.hpp>
+#include <mad/random_bytegen.hpp>
 // google.bench
 #include <benchmark/benchmark.h>
 // cstd
@@ -31,8 +31,8 @@
 template <typename T>
 struct cb_fixture : public benchmark::Fixture {
     void SetUp(const ::benchmark::State &) {
-        mad::bytegen(putb);
-        mad::bytegen(puta);
+        mad::random::bytegen(putb);
+        mad::random::bytegen(puta);
     }
 
     void TearDown(const ::benchmark::State &) {}
@@ -49,8 +49,8 @@ void put(benchmark::State & st) {
     Q buffer(static_cast<std::size_t>(getpagesize()));
     std::array<unsigned char, 4096 / 4> puta, putb;
 
-    mad::bytegen(putb);
-    mad::bytegen(puta);
+    mad::random::bytegen(putb);
+    mad::random::bytegen(puta);
 
     for (auto _ : st) {
         benchmark::DoNotOptimize(buffer.put(putb));
@@ -65,8 +65,8 @@ void put_overwrite(benchmark::State & st) {
     Q buffer(static_cast<std::size_t>(getpagesize()));
     std::array<unsigned char, 4096 / 4> puta, putb;
 
-    mad::bytegen(putb);
-    mad::bytegen(puta);
+    mad::random::bytegen(putb);
+    mad::random::bytegen(puta);
 
     for (auto _ : st) {
         benchmark::DoNotOptimize(buffer.put(putb));

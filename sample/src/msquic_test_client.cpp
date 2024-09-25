@@ -6,11 +6,11 @@
 
 #include <fmt/format.h>
 
-static void client_on_connected(void * uctx, mad::nexus::connection_context * cctx) {}
+static void client_on_connected([[maybe_unused]] void * uctx, [[maybe_unused]] mad::nexus::connection_context * cctx) {}
 
-static void client_on_disconnected(void * uctx, mad::nexus::connection_context * cctx) {}
+static void client_on_disconnected([[maybe_unused]] void * uctx, [[maybe_unused]] mad::nexus::connection_context * cctx) {}
 
-static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
+static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::span<const std::uint8_t> buf) {
     fmt::println("app_stream_data_received: received {} byte(s)", buf.size_bytes());
     return 0;
 }

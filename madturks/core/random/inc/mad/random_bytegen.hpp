@@ -25,7 +25,7 @@
 #include <algorithm>
 
 // mad
-namespace mad {
+namespace mad::random {
 
     static inline std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char> rbe;
 
@@ -56,4 +56,4 @@ namespace mad {
             bytegen(v);
         });
     }
-} // namespace mad
+} // namespace mad::random

@@ -55,8 +55,9 @@ namespace mad::nexus {
                         return QUIC_STATUS_SUCCESS;
                     } else {
                         msquic_ctx.api->ConnectionSendResumptionTicket(chandle, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
-                      
+
                         // Notify app
+                        assert(server.callbacks.on_connected);
                         server.callbacks.on_connected(&citr->second);
                     }
                 } else {
@@ -70,6 +71,7 @@ namespace mad::nexus {
                 } else {
                     fmt::println("Removed connection from the connection map");
                     // Notify app
+                    assert(server.callbacks.on_disconnected);
                     server.callbacks.on_disconnected(&itr->second);
                     wa->erase(itr);
                 }
@@ -90,31 +92,10 @@ namespace mad::nexus {
             } break;
 
             case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
-
                 // We shouldn't receive peer_stream_started event
                 // as we're not allowing peer initiated streams.
                 // Shutdown them directly.
                 auto shandle = event->PEER_STREAM_STARTED.Stream;
-                // fmt::println("New stream {} by connection {}", static_cast<void *>(shandle), static_cast<void *>(chandle));
-
-                // // Stream accesses are serialized, and only one thread will
-                // // do stream work at a time, so there's no point of blocking
-                // // other connection lookups by grabbing an exclusive lock.
-                // auto ra = msquic_ctx.connection_map.mutable_shared_access();
-                // if (auto citr = ra->find(chandle); !(citr == ra->end())) {
-                //     // Create new stream context
-                //     auto & connection = citr->second;
-                //     if (const auto & [sitr, emplaced] = connection.streams.emplace(shandle, stream_context{shandle, chandle}); emplaced)
-                //     {
-                //         msquic_ctx.api->SetCallbackHandler(shandle, reinterpret_cast<void *>(ServerStreamCallback), &sitr->second);
-                //         return QUIC_STATUS_SUCCESS;
-                //     } else {
-                //         fmt::println("Could not emplace, an item with same key ({}) already exists!", static_cast<void *>(shandle));
-                //     }
-                // } else {
-                //     fmt::println("Client tried to initiate stream but associated connection not found!");
-                // }
-                // fmt::println("[strm::start] - closing stream ({})", static_cast<void *>(shandle));
                 msquic_ctx.api->StreamClose(shandle);
             } break;
             case QUIC_CONNECTION_EVENT_RESUMED: {

@@ -10,7 +10,7 @@ nexus = declare_dependency(
             'src/msquic_client.cpp',
             'src/quic_error_code.cpp',
         ],
-        include_directories: include_directories('include'),
+        include_directories: include_directories('inc'),
         install: true,
         dependencies: [
             madturks_core_container,
@@ -20,6 +20,6 @@ nexus = declare_dependency(
             fmt,
         ],
     ),
-    include_directories: include_directories('include'),
+    include_directories: include_directories('inc'),
     dependencies: [madturks_core_concurrency, madturks_core_container]
 )

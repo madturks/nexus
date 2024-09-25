@@ -45,7 +45,7 @@ namespace mad {
 #endif
 
 // xproj
-#include <mad/has_begin_end.hpp>
+#include <mad/concepts>
 
 namespace mad {
 

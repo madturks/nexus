@@ -16,7 +16,6 @@ static std::size_t app_stream_data_received(void * uctx, std::span<const std::ui
     return 0;
 }
 
-
 static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void * context, QUIC_CONNECTION_EVENT * event) {
 
     assert(context);
@@ -32,14 +31,14 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
 
             auto [itr, inserted] = cctx->streams.emplace(
                 new_stream, mad::nexus::stream_context{
-                                new_stream, cctx->connection_handle, mad::nexus::stream_data_callback_t{app_stream_data_received, nullptr}
+                                new_stream, *cctx.get(), mad::nexus::stream_data_callback_t{app_stream_data_received, nullptr}
             });
             if (!inserted) {
                 msquic_ctx.api->StreamClose(new_stream);
             } else {
                 auto & sctx = itr->second;
-
-                msquic_ctx.api->SetCallbackHandler(new_stream, (void *) mad::nexus::StreamCallback, static_cast<void *>(&sctx));
+                msquic_ctx.api->SetCallbackHandler(new_stream, reinterpret_cast<void *>(mad::nexus::StreamCallback),
+                                                   static_cast<void *>(&sctx));
             }
 
             return QUIC_STATUS_SUCCESS;
@@ -50,6 +49,7 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
             fmt::println("Client connected, resumed: {}, negotiated_alpn: {}", v.SessionResumed,
                          std::string_view{reinterpret_cast<const char *>(v.NegotiatedAlpn), v.NegotiatedAlpnLength});
             client.connection_ctx = std::make_unique<mad::nexus::connection_context>(chandle);
+            assert(client.callbacks.on_connected);
             client.callbacks.on_connected(client.connection_ctx.get());
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
@@ -87,7 +87,6 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
         } break;
     }
 
-  
     return QUIC_STATUS_NOT_SUPPORTED;
 }
 

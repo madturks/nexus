@@ -12,7 +12,7 @@
 
 namespace mad::nexus {
 
-    std::string quic_stream_event_to_str(int eid) {
+    constexpr std::string_view quic_stream_event_to_str(int eid) {
         switch (eid) {
             case QUIC_STREAM_EVENT_START_COMPLETE:
                 return "QUIC_STREAM_EVENT_START_COMPLETE";
@@ -84,12 +84,11 @@ namespace mad::nexus {
                 if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
                     o2i(ctx->msquic_impl()).api->StreamClose(stream);
                 }
-                // o2i(ctx->msquic_impl()).api->StreamClose(stream);
-                //  FIXME: Fix this::::
-                //  if (auto itr = ctx->streams.find(stream); itr == ctx->streams.end()) {
-                //      fmt::println("stream shutdown");
-                //      ctx->streams.erase(itr);
-                //  }
+
+                if (auto itr = sctx.connection().streams.find(stream); itr == sctx.connection().streams.end()) {
+                    fmt::println("stream erased from connection map");
+                    sctx.connection().streams.erase(itr);
+                }
 
             } break;
         }
@@ -128,7 +127,7 @@ namespace mad::nexus {
             return std::unexpected(quic_error_code::stream_open_failed);
         }
 
-        auto [itr, inserted] = cctx->streams.emplace(new_stream, stream_context{new_stream, cctx->connection_handle, data_callback});
+        auto [itr, inserted] = cctx->streams.emplace(new_stream, stream_context{new_stream, *cctx, data_callback});
         if (!inserted) {
             api->StreamClose(new_stream);
             return std::unexpected(quic_error_code::stream_insert_to_map_failed);

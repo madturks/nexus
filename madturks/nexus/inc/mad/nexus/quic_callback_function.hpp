@@ -3,7 +3,6 @@
 #include <utility>
 #include <cassert>
 
-
 namespace mad::nexus {
 
     template <typename>
@@ -30,6 +29,10 @@ namespace mad::nexus {
 
         callback_fn_t fun_ptr = {nullptr};
         context_ptr_t ctx_ptr = {nullptr};
+
+        inline operator bool() {
+            return fun_ptr;
+        }
 
         void reset() {
             fun_ptr = nullptr;

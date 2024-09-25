@@ -4,7 +4,13 @@ project(
     'nexus',
     'cpp',
     version: '0.0.0',
-    default_options: ['cpp_std=c++23', 'cpp_compiler=clang++-18', 'cpp_rtti=false', 'b_sanitize=address,undefined', 'b_lundef=false'],
+    default_options: [
+        'cpp_std=c++23',
+        'cpp_compiler=clang++-18',
+        'cpp_rtti=false',
+        # 'b_sanitize=address,undefined',
+        'b_lundef=false',
+    ],
     license: 'GPL',
 )
 
@@ -25,6 +31,8 @@ clang_compiler_flags = [
     '-fsafe-buffer-usage-suggestions',
     '-Wno-unsafe-buffer-usage',
     '-Wno-documentation',
+    '-Wno-c++20-compat',
+    '-Wno-gnu-zero-variadic-macro-arguments',
 ]
 
 clang_linker_flags = ['-stdlib=libc++']
@@ -62,8 +70,8 @@ run_command(
 # boost = dependency('boost')
 flatbuffers = dependency('flatbuffers', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
-spdlog = dependency('spdlog', include_type: 'system')
 gtest = dependency('gtest', include_type: 'system')
+gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
 # abseil = dependency('abseil', include_type: 'system')
@@ -95,8 +103,6 @@ fbs_schemas = declare_dependency(
     include_directories: include_directories('tgt/fbs-schemas/include'),
 )
 
-# bindir
-
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.
 msquic = declare_dependency(
@@ -111,10 +117,13 @@ msquic = declare_dependency(
     version: '2.4.4',
 )
 
+subdir('madturks/core/meta')
 subdir('madturks/core/concept')
-subdir('madturks/core/algorithm')
+subdir('madturks/core/random')
 subdir('madturks/core/container')
 subdir('madturks/core/concurrency')
+subdir('madturks/core/temputils')
+subdir('madturks/core/log')
 subdir('madturks/nexus')
 
 executable(

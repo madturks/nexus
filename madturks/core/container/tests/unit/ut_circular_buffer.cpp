@@ -18,7 +18,7 @@
  * ______________________________________________________
  */
 
-#include <mad/bytegen.hpp>
+#include <mad/random_bytegen.hpp>
 #include <mad/circular_buffer_vm.hpp>
 #include <mad/circular_buffer_pow2.hpp>
 #include <mad/circular_buffer.hpp>
@@ -75,7 +75,7 @@ TYPED_TEST(cb_fast_fixture, push) {
     std::array<std::array<unsigned char, page_size / 4>, 4> put_bufs = {{}};
     std::array<std::array<unsigned char, page_size / 4>, 4> get_bufs = {{}};
 
-    mad::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
+    mad::random::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
     EXPECT_TRUE(alloc.put_all(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]));
     EXPECT_TRUE(alloc.get_all(get_bufs [0], get_bufs [1], get_bufs [2], get_bufs [3]));
     EXPECT_TRUE(std::equal(put_bufs.begin(), put_bufs.end(), get_bufs.begin()));
@@ -85,7 +85,7 @@ TYPED_TEST(cb_fast_fixture, push_full) {
     TypeParam alloc{page_size};
     std::array<std::array<unsigned char, page_size / 4>, 4> put_bufs = {{}};
 
-    mad::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
+    mad::random::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
 
     EXPECT_TRUE(alloc.put_all(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]));
     // Check we got no space
@@ -100,7 +100,7 @@ TYPED_TEST(cb_fast_fixture, push_wrap_around) {
     std::array<std::array<unsigned char, page_size / 4>, 4> put_bufs = {{}};
     std::array<std::array<unsigned char, page_size / 4>, 4> get_bufs = {{}};
 
-    mad::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
+    mad::random::bytegen_n(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]);
     EXPECT_TRUE(alloc.put_all(put_bufs [0], put_bufs [1], put_bufs [2], put_bufs [3]));
     ASSERT_FALSE(alloc.empty_space());
     EXPECT_TRUE(alloc.get_all(get_bufs [0], get_bufs [1])); //

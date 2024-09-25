@@ -39,6 +39,10 @@ namespace mad::nexus {
                 return "Stream start failed.";
             case stream_insert_to_map_failed:
                 return "Stream insert to map failed.";
+            case connection_start_failed:
+                return "Connection start failed.";
+            case connection_initialization_failed:
+                return "Connection initialization failed.";
         }
 
         std::unreachable();

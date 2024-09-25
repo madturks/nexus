@@ -22,7 +22,7 @@
 #include <thread>
 #include <atomic>
 
-std::atomic_bool stop;
+static std::atomic_bool stop;
 static std::vector<std::thread> threads;
 
 static std::unordered_map<std::string, mad::nexus::stream_context *> streams;
@@ -31,7 +31,7 @@ static std::string message = "hello from the other side";
 static void test_loop(mad::nexus::quic_server & quic_server) {
 
     for (auto & [str, stream] : streams) {
-        quic_server.send(stream, quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
+        (void) quic_server.send(stream, quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
             mb.add_hp(150);
             mb.add_mana(80);
         }));
@@ -39,7 +39,7 @@ static void test_loop(mad::nexus::quic_server & quic_server) {
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
 }
 
-static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
+static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::span<const std::uint8_t> buf) {
     fmt::println("app_stream_data_received: received {} byte(s)", buf.size_bytes());
     return 0;
 }
@@ -87,7 +87,7 @@ static void server_on_disconnected(void * uctx, mad::nexus::connection_context *
 
     fmt::println("app received disconnection !");
 
-    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
+    [[maybe_unused]] auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
     stop.store(true);
     for (auto & thr : threads) {
         thr.join();
@@ -111,8 +111,6 @@ int main(void) {
 
     server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};
     server->callbacks.on_disconnected = mad::nexus::quic_callback_function{&server_on_disconnected, server.get()};
-    //
-    // server->callbacks.on_connected = ;
 
     if (auto r = server->init(); !mad::nexus::successful(r)) {
         fmt::println("QUIC server initialization failed: {}, {}", r.value(), r.message());
@@ -125,9 +123,6 @@ int main(void) {
     }
 
     fmt::println("QUIC server is listening for incoming connections.");
-    // fmt::println("Press any key to start sending data.");
-    // getchar();
-    // stop.store(false);
     fmt::println("Press any key to stop the app.");
     getchar();
 }
