@@ -36,7 +36,7 @@ static void test_loop(mad::nexus::quic_server & server) {
         auto a = fbb.Release();
         server.send(stream, std::move(a));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds{750});
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
 }
 
 static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
@@ -51,34 +51,39 @@ static void server_on_connected(void * uctx, mad::nexus::connection_context * cc
     fmt::println("app received new connection!");
 
     auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
-    stop.store(false);
 
     for (int i = 0; i < 10; i++) {
-        auto & fbb = quic_server.get_message_builder();
-        auto v     = mad::schemas::Vec3(1, 2, 3);
-        auto o     = mad::schemas::CreateMonster(fbb, &v, 150, 80);
-        fbb.Finish(o);
-        auto a = fbb.Release();
 
         if (auto r = quic_server.open_stream(cctx, mad::nexus::stream_data_callback_t{&app_stream_data_received, nullptr}); !r) {
             fmt::println("server_on_connected -- stream open failed: {}!", r.error().message());
             continue;
         } else {
             streams.emplace("stream_" + std::to_string(i), r.value());
+
+           // flatbuffers::DefaultAllocator::dealloc((void *p), size_t)
+
+            flatbuffers::FlatBufferBuilder fbb;
+            mad::schemas::MonsterBuilder mb(fbb);
+            mb.add_hp(12);
+            mb.add_mana(5);
+            auto obj = mb.Finish();
+            fbb.Finish(obj);
+            auto a = fbb.Release();
+           // fbb.ReleaseRaw(size_t &size, size_t &offset)
             if (!quic_server.send(r.value(), std::move(a))) {
                 fmt::println("could not send msg!");
             }
         }
     }
 
-    for (int i = 0; i < 10; i++) {
-
+    for (int i = 0; i < 32; i++) {
         std::thread thr{[&]() {
             while (!stop.load())
                 test_loop(quic_server);
         }};
         threads.push_back(std::move(thr));
     }
+    fmt::println("server_on_connected return");
 }
 
 static void server_on_disconnected(void * uctx, mad::nexus::connection_context * cctx) {
@@ -98,6 +103,7 @@ static void server_on_disconnected(void * uctx, mad::nexus::connection_context *
 
 int main(void) {
     fmt::println("{}", __cplusplus);
+    stop.store(false);
 
     mad::nexus::quic_configuration cfg;
     cfg.alpn                          = "test";
@@ -106,8 +112,6 @@ int main(void) {
     cfg.idle_timeout                  = std::chrono::milliseconds{10000};
     cfg.udp_port_number               = 6666;
 
-
-    
     auto server                       = mad::nexus::msquic_server::make(cfg);
 
     server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};
@@ -126,6 +130,9 @@ int main(void) {
     }
 
     fmt::println("QUIC server is listening for incoming connections.");
-    fmt::println("Press any key to stop.");
+    // fmt::println("Press any key to start sending data.");
+    // getchar();
+    // stop.store(false);
+    fmt::println("Press any key to stop the app.");
     getchar();
 }

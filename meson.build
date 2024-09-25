@@ -4,7 +4,7 @@ project(
     'nexus',
     'cpp',
     version: '0.0.0',
-    default_options: ['cpp_std=c++23', 'cpp_compiler=clang++-18', 'cpp_rtti=false', 'b_sanitize=thread', 'b_lundef=false'],
+    default_options: ['cpp_std=c++23', 'cpp_compiler=clang++-18', 'cpp_rtti=false', 'b_sanitize=address,undefined', 'b_lundef=false'],
     license: 'GPL',
 )
 

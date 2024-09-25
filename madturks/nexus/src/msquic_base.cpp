@@ -5,9 +5,38 @@
 
 #include <mad/nexus/msquic/msquic_api.inl>
 
+#include <msquic.h>
 #include <thread>
 
 namespace mad::nexus {
+
+    std::string quic_stream_event_to_str(int eid) {
+        switch (eid) {
+            case QUIC_STREAM_EVENT_START_COMPLETE:
+                return "QUIC_STREAM_EVENT_START_COMPLETE";
+            case QUIC_STREAM_EVENT_RECEIVE:
+                return "QUIC_STREAM_EVENT_RECEIVE";
+            case QUIC_STREAM_EVENT_SEND_COMPLETE:
+                return "QUIC_STREAM_EVENT_SEND_COMPLETE";
+            case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+                return "QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN";
+            case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+                return "QUIC_STREAM_EVENT_PEER_SEND_ABORTED";
+            case QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED:
+                return "QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED";
+            case QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE:
+                return "QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE";
+            case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+                return "QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE";
+            case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+                return "QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE";
+            case QUIC_STREAM_EVENT_PEER_ACCEPTED:
+                return "QUIC_STREAM_EVENT_PEER_ACCEPTED";
+            case QUIC_STREAM_EVENT_CANCEL_ON_LOSS:
+                return "QUIC_STREAM_EVENT_CANCEL_ON_LOSS";
+        }
+        return "undefined";
+    }
 
     QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
         assert(context);
@@ -15,7 +44,7 @@ namespace mad::nexus {
 
         auto ctx    = reinterpret_cast<msquic_base *>(context);
 
-        fmt::println("ServerStreamCallback {}", static_cast<int>(event->Type));
+        fmt::println("StreamCallback  - {} - {}", quic_stream_event_to_str(event->Type), static_cast<int>(event->Type));
 
         // we can use the connection as context here?
         switch (event->Type) {
@@ -54,6 +83,7 @@ namespace mad::nexus {
                 std::stringstream aq;
                 aq << std::this_thread::get_id();
                 fmt::println("stream shutdown from thread {}", aq.str());
+
                 if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
                     o2i(ctx->msquic_impl()).api->StreamClose(stream);
                 }
@@ -154,8 +184,9 @@ namespace mad::nexus {
         auto & buffer = itr->second;
 
         fmt::println("sending {} bytes of data", buffer.size());
-        QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(const_cast<std::uint8_t *>(buffer.data()));
-        qbuf->Buffer       = reinterpret_cast<std::uint8_t *>(qbuf + sizeof(QUIC_BUFFER));
+
+        QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(buffer.data());
+        qbuf->Buffer       = reinterpret_cast<std::uint8_t *>(buffer.data() + sizeof(QUIC_BUFFER));
         qbuf->Length       = static_cast<std::uint32_t>(buffer.size() - sizeof(QUIC_BUFFER));
 
         // We're using the context pointer here to store the key.
@@ -166,7 +197,7 @@ namespace mad::nexus {
             return 0;
         }
 
-        fmt::println("sent, queue size {}", sctx->in_flight_count());
+        // fmt::println("sent, queue size {}", sctx->in_flight_count());
         // FIXME:
         return buf.size() - sizeof(QUIC_BUFFER);
     }
