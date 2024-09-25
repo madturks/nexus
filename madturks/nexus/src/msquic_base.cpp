@@ -151,17 +151,6 @@ namespace mad::nexus {
             return 0;
         }
         auto itr      = store_result.value();
-
-        // auto emplace_result = sctx.buffers_in_flight().emplace(reinterpret_cast<std::uint64_t>(&buf), std::move(buf));
-        // {
-        //     // Extract the node to update its key to the address of the value (DetachedBuffer)
-        //     auto node  = sctx.buffers_in_flight().extract(itr);
-        //     // Update the key to be the address of the value (DetachedBuffer)
-        //     node.key() = reinterpret_cast<std::uint64_t>(&node.mapped());
-        //     // FIXME: Check insert result
-        //     sctx.buffers_in_flight().insert(std::move(node));
-        // }
-
         auto & buffer = itr->second;
 
         fmt::println("sending {} bytes of data", buffer.size());
@@ -176,6 +165,7 @@ namespace mad::nexus {
 
             return 0;
         }
+
         fmt::println("sent, queue size {}", sctx->in_flight_count());
         // FIXME:
         return buf.size() - sizeof(QUIC_BUFFER);

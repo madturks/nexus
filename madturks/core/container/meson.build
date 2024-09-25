@@ -19,7 +19,7 @@ common_circular_buffer_ut = executable(
     'tests/unit/ut_circular_buffer.cpp',
     dependencies: [madturks_core_algorithm, madturks_core_container, gtest],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
-    override_options: ['b_sanitize=address'],
+    # override_options: ['b_sanitize=address'],
 )
 
 test('Circular Buffer unit tests', common_circular_buffer_ut)

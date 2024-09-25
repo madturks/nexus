@@ -74,6 +74,7 @@ namespace mad::nexus {
         }
 
         auto in_flight_count() const {
+            std::unique_lock<std::mutex> lock(*mtx);
             return buffers_in_flight_.size();
         }
 

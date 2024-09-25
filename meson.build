@@ -4,7 +4,7 @@ project(
     'nexus',
     'cpp',
     version: '0.0.0',
-    default_options: ['cpp_std=c++23', 'cpp_compiler=clang++-18', 'cpp_rtti=false'],
+    default_options: ['cpp_std=c++23', 'cpp_compiler=clang++-18', 'cpp_rtti=false', 'b_sanitize=thread', 'b_lundef=false'],
     license: 'GPL',
 )
 
@@ -66,7 +66,7 @@ spdlog = dependency('spdlog', include_type: 'system')
 gtest = dependency('gtest', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
-abseil = dependency('abseil', include_type: 'system')
+# abseil = dependency('abseil', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')
@@ -102,13 +102,13 @@ fbs_schemas = declare_dependency(
 msquic = declare_dependency(
     dependencies: compiler.find_library(
         'msquic',
-        dirs: meson.project_source_root() + '/vendor/msquic/2.3.6/bin',
+        dirs: meson.project_source_root() + '/vendor/msquic/2.4.4/bin',
         has_headers: ['msquic.h', 'msquic_posix.h', 'quic_sal_stub.h'],
-        header_include_directories: include_directories('vendor/msquic/2.3.6/include', is_system: true),
+        header_include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),
         required: true,
     ),
-    include_directories: include_directories('vendor/msquic/2.3.6/include', is_system: true),
-    version: '2.3.6',
+    include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),
+    version: '2.4.4',
 )
 
 subdir('madturks/core/concept')

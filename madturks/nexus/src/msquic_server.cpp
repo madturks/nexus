@@ -55,6 +55,7 @@ namespace mad::nexus {
                         return QUIC_STATUS_SUCCESS;
                     } else {
                         msquic_ctx.api->ConnectionSendResumptionTicket(chandle, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
+                      
                         // Notify app
                         server.callbacks.on_connected(&citr->second);
                     }
@@ -88,8 +89,6 @@ namespace mad::nexus {
                 fmt::println("Connection shut down by peer, error code: {}", event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
             } break;
 
-
-        
             case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
 
                 // We shouldn't receive peer_stream_started event

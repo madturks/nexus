@@ -86,6 +86,8 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
             fmt::println("Resumption ticket received {} byte(s)", event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         } break;
     }
+
+  
     return QUIC_STATUS_NOT_SUPPORTED;
 }
 

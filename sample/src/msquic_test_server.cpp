@@ -36,7 +36,7 @@ static void test_loop(mad::nexus::quic_server & server) {
         auto a = fbb.Release();
         server.send(stream, std::move(a));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    std::this_thread::sleep_for(std::chrono::milliseconds{750});
 }
 
 static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
@@ -105,6 +105,9 @@ int main(void) {
     cfg.credentials.private_key_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.key";
     cfg.idle_timeout                  = std::chrono::milliseconds{10000};
     cfg.udp_port_number               = 6666;
+
+
+    
     auto server                       = mad::nexus::msquic_server::make(cfg);
 
     server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};

@@ -215,6 +215,9 @@ namespace mad::nexus {
             settings.ServerResumptionLevel       = QUIC_SERVER_RESUME_AND_ZERORTT;
             settings.IsSet.ServerResumptionLevel = true;
 
+            settings.SendBufferingEnabled = false;
+            settings.IsSet.SendBufferingEnabled = true;
+
             // Configures the server's settings to allow for the peer to open a single
             // bidirectional stream. By default connections are not configured to allow
             // any streams from the peer.

@@ -7,8 +7,12 @@ namespace mad::nexus {
     auto quic_base::get_message_builder() -> flatbuffers::FlatBufferBuilder & {
         thread_local ::flatbuffers::FlatBufferBuilder builder;
         // Reserved space for QUIC_BUFFER. One allocation is enough.
-        const std::uint8_t reserved_space [16] = {};
-        builder.PushBytes(reserved_space, sizeof(reserved_space));
+        constexpr auto k_QuicBufferSize                                   = 16;
+        constexpr auto k_QuicBufferAlignment                              = 8;
+        // Align the buffer properly.
+        builder.PreAlign(k_QuicBufferSize, k_QuicBufferAlignment);
+        builder.Pad(k_QuicBufferSize);
+        assert(builder.GetSize() == k_QuicBufferSize);
         return builder;
     }
 } // namespace mad::nexus
