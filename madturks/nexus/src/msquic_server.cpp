@@ -1,19 +1,15 @@
-
-
-#include "mad/log_macros.hpp"
-#include "mad/log_printer.hpp"
 #include <flatbuffers/detached_buffer.h>
 #include <mad/nexus/msquic/msquic_server.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/circular_buffer_vm.hpp>
 #include <mad/concurrent.hpp>
+#include <mad/log_printer.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 
 #include <memory>
 #include <expected>
 #include <netinet/in.h>
 #include <system_error>
-#include <thread>
 
 #include <msquic.h>
 #include <fmt/format.h>

@@ -1,4 +1,3 @@
-#include "mad/log_printer.hpp"
 #include <mad/nexus/quic_base.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>
@@ -6,6 +5,7 @@
 #include <mad/nexus/quic_stream_context.hpp>
 
 #include <mad/nexus/msquic/msquic_api.inl>
+#include <mad/log_printer.hpp>
 #include <msquic.h>
 #include <utility>
 
