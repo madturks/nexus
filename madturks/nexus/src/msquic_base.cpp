@@ -43,7 +43,7 @@ namespace mad::nexus {
         return "undefined";
     }
 
-    static QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
+    QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
         assert(context);
         auto & sctx = *static_cast<stream_context *>(context);
 
@@ -103,7 +103,9 @@ namespace mad::nexus {
         return QUIC_STATUS_SUCCESS;
     }
 
-    msquic_base::msquic_base(quic_configuration cfg) : quic_base(cfg), log_printer("console") {}
+    msquic_base::msquic_base(quic_configuration cfg) : quic_base(cfg), log_printer("console") {
+        set_log_level(log_level::trace);
+    }
     msquic_base::~msquic_base() = default;
 
     std::error_code msquic_base::init() {
