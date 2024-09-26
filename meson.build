@@ -133,13 +133,13 @@ subdir('madturks/nexus')
 executable(
     'msquic-test-server',
     'sample/src/msquic_test_server.cpp',
-    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
+    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
 )
 
 executable(
     'msquic-test-client',
     'sample/src/msquic_test_client.cpp',
-    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
+    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
 )
 
 executable(
