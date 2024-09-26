@@ -33,12 +33,12 @@ int main(void) {
     //
     // server->callbacks.on_connected = ;
 
-    if (auto r = client->init(); !mad::nexus::successful(r)) {
+    if (auto r = client->init(); mad::nexus::failed(r)) {
         MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}", r.value(), r.message());
         return -1;
     }
 
-    if (auto r = client->connect("127.0.0.1", 6666); !mad::nexus::successful(r)) {
+    if (auto r = client->connect("127.0.0.1", 6666); mad::nexus::failed(r)) {
         MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(), r.message());
         return -2;
     }

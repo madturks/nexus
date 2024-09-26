@@ -114,12 +114,12 @@ int main(void) {
     server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};
     server->callbacks.on_disconnected = mad::nexus::quic_callback_function{&server_on_disconnected, server.get()};
 
-    if (auto r = server->init(); !mad::nexus::successful(r)) {
+    if (auto r = server->init(); mad::nexus::failed(r)) {
         MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}", r.value(), r.message());
         return -1;
     }
 
-    if (auto r = server->listen(); !mad::nexus::successful(r)) {
+    if (auto r = server->listen(); mad::nexus::failed(r)) {
         MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(), r.message());
         return -2;
     }
