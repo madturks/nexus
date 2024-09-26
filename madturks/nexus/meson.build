@@ -15,11 +15,12 @@ nexus = declare_dependency(
         dependencies: [
             madturks_core_container,
             madturks_core_concurrency,
+            madturks_core_log,
             msquic,
             flatbuffers,
             fmt,
         ],
     ),
     include_directories: include_directories('inc'),
-    dependencies: [madturks_core_concurrency, madturks_core_container]
+    dependencies: [madturks_core_concurrency, madturks_core_container, madturks_core_log]
 )

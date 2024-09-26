@@ -14,7 +14,7 @@ namespace mad::nexus {
     class msquic_server final : virtual public quic_server,
                                 virtual public msquic_base {
     public:
-        using msquic_base::msquic_base;
+        msquic_server(quic_configuration cfg);
         virtual ~msquic_server() override;
 
         [[nodiscard]] virtual std::error_code listen() override;

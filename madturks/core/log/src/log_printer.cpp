@@ -21,11 +21,11 @@
 // since it is static. It causes all kind of weird issues when being
 // linked through another static library.
 
-auto spdlog_get_logger(auto var) {
+static auto spdlog_get_logger(auto var) {
     return spdlog::get(std::string{var});
 }
 
-auto spdlog_default_logger() {
+static auto spdlog_default_logger() {
     static auto default_logger = []() {
 #ifdef _WIN32
         auto color_sink = std::make_shared<spdlog::sinks::wincolor_stdout_sink_mt>();

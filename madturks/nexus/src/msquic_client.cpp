@@ -1,3 +1,4 @@
+#include "mad/log_printer.hpp"
 #include <mad/nexus/quic_base.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>
@@ -6,12 +7,14 @@
 
 #include <mad/nexus/msquic/msquic_api.inl>
 #include <msquic.h>
+#include <utility>
 
 namespace mad::nexus {
     QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event);
 }
 
-static std::size_t app_stream_data_received(void * uctx, std::span<const std::uint8_t> buf) {
+static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::span<const std::uint8_t> buf) {
+    // TODO: Fix this logging
     fmt::println("app_stream_data_received: received {} byte(s)", buf.size_bytes());
     return 0;
 }
@@ -23,7 +26,7 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
     auto & msquic_ctx = mad::nexus::o2i(client.msquic_impl());
     auto & cctx       = client.connection_ctx;
 
-    fmt::println("ClientConnectionCallback() - Event Type: `{}`", static_cast<int>(event->Type));
+    MAD_LOG_INFO_I(client, "ClientConnectionCallback() - Event Type: `{}`", std::to_underlying(event->Type));
 
     switch (event->Type) {
         case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
@@ -43,10 +46,10 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
 
             return QUIC_STATUS_SUCCESS;
 
-        } break;
+        }
         case QUIC_CONNECTION_EVENT_CONNECTED: {
             auto & v = event->CONNECTED;
-            fmt::println("Client connected, resumed: {}, negotiated_alpn: {}", v.SessionResumed,
+            MAD_LOG_INFO_I(client, "Client connected, resumed: {}, negotiated_alpn: {}", v.SessionResumed,
                          std::string_view{reinterpret_cast<const char *>(v.NegotiatedAlpn), v.NegotiatedAlpnLength});
             client.connection_ctx = std::make_unique<mad::nexus::connection_context>(chandle);
             assert(client.callbacks.on_connected);
@@ -54,22 +57,22 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
             auto & v = event->SHUTDOWN_INITIATED_BY_PEER;
-            fmt::println("connection shutdown by peer, error code {}", v.ErrorCode);
+            MAD_LOG_INFO_I(client, "connection shutdown by peer, error code {}", v.ErrorCode);
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
             auto & v = event->SHUTDOWN_INITIATED_BY_TRANSPORT;
             switch (v.Status) {
                 case QUIC_STATUS_CONNECTION_IDLE: {
-                    fmt::println("connection shutdown on idle");
+                    MAD_LOG_DEBUG_I(client, "connection shutdown on idle");
                 } break;
                 case QUIC_STATUS_CONNECTION_REFUSED: {
-                    fmt::println("connection refused");
+                    MAD_LOG_DEBUG_I(client, "connection refused");
                 } break;
                 case QUIC_STATUS_CONNECTION_TIMEOUT: {
-                    fmt::println("connection attempt timed out");
+                    MAD_LOG_DEBUG_I(client, "connection attempt timed out");
                 } break;
             }
-            fmt::println("ClientConnectionCallback - shutdown initiated by peer");
+            MAD_LOG_INFO_I(client, "ClientConnectionCallback - shutdown initiated by peer");
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
             // TODO: Invoke on_client_disconnect callback?
@@ -83,15 +86,18 @@ static QUIC_STATUS ClientConnectionCallback([[maybe_unused]] HQUIC chandle, void
         } break;
         case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED: {
             // TODO: Store resumption ticket for later?
-            fmt::println("Resumption ticket received {} byte(s)", event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+            MAD_LOG_DEBUG_I(client, "Resumption ticket received {} byte(s)", event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         } break;
+        default: {
+            MAD_LOG_WARN_I(client, "ClientConnectionCallback - unhandled event type: {}", std::to_underlying(event->Type));
+        }
     }
 
     return QUIC_STATUS_NOT_SUPPORTED;
 }
 
 namespace mad::nexus {
-
+    msquic_client::msquic_client(quic_configuration cfg) : quic_base(cfg), msquic_base(cfg) {}
     msquic_client::~msquic_client() = default;
 
     std::error_code msquic_client::connect(std::string_view target, std::uint16_t port) {

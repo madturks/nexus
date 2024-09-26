@@ -33,6 +33,10 @@ clang_compiler_flags = [
     '-Wno-documentation',
     '-Wno-c++20-compat',
     '-Wno-gnu-zero-variadic-macro-arguments',
+    '-Wno-missing-prototypes',
+    '-Wno-documentation-unknown-command',
+    '-Wno-reserved-identifier',
+    '-Wno-global-constructors'
 ]
 
 clang_linker_flags = ['-stdlib=libc++']

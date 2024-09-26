@@ -333,7 +333,7 @@ namespace mad {
          */
         static inline void dump_any_error_to_clog(const std::exception & ex, std::string_view message) {
             std::clog << "Logging failed, dumping formatted message:\n";
-            std::clog.write(message.data(), message.size());
+            std::clog.write(message.data(), static_cast<std::streamsize>(message.size()));
             std::clog << "\n";
             std::clog << "\nError cause: " << ex.what() << "\n";
         }

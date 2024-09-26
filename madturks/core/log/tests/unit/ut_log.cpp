@@ -11,7 +11,7 @@
 
 #include <mad/temputils.hpp>
 
-const char * default_config = R"(# level is optional for both sinks and loggers
+static const char * default_config = R"(# level is optional for both sinks and loggers
 # level for error logging is 'err', not 'error'
 # _st => single threaded, _mt => multi threaded
 # syslog_sink is automatically thread-safe by default, no need for _mt suffix
@@ -157,11 +157,11 @@ LOG_TEST_CASE_SHOULD_NOT_LOG(mad::log_level::critical, MAD_LOG_, CRITICAL)
 
 static auto toml_file_path = std::filesystem::temp_directory_path().append("ncf.log.default.toml");
 
-void write_default_config() {
+static void write_default_config() {
 
     if (auto result = mad::make_temp_file()) {
         auto & [path, ofs] = (*result);
-        ofs.write(default_config, std::strlen(default_config));
+        ofs.write(default_config, static_cast<std::streamsize>(std::strlen(default_config)));
         ofs.close();
         std::filesystem::rename(path, toml_file_path);
     }
