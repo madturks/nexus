@@ -1,13 +1,15 @@
-#include "mad/log_macros.hpp"
-#include "mad/log_printer.hpp"
-#include <flatbuffers/default_allocator.h>
-#include <flatbuffers/detached_buffer.h>
 #include <mad/nexus/msquic/msquic_base.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 
 #include <mad/nexus/msquic/msquic_api.inl>
+
+#include <mad/log_macros.hpp>
+#include <mad/log_printer.hpp>
+
+#include <flatbuffers/default_allocator.h>
+#include <flatbuffers/detached_buffer.h>
 
 #include <msquic.h>
 #include <thread>
