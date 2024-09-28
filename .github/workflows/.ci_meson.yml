@@ -1,0 +1,35 @@
+name: CI Meson
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build with Meson
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: python -m pip install meson==1.5.2 ninja
+      - name: Configure Project
+        run: meson setup tgt --wipe --native-file=.config/meson-clang
+      - name: Build Project
+        run: meson compile -C tgt
+      - name: Run Tests
+        run: meson test -C tgt -v
+      - name: Upload Test Log
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: ubuntu-24.04_Meson_TestLog
+          path: tgt/meson-logs/testlog.txt
