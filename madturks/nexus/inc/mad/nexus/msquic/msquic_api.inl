@@ -3,13 +3,15 @@
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_configuration.hpp>
 
+#include <mad/log_printer.hpp>
+#include <mad/log_macros.hpp>
+
 #include <memory>
 #include <functional>
 #include <expected>
 #include <filesystem>
 
 #include <msquic.h>
-#include <fmt/format.h>
 
 namespace mad::nexus {
 
@@ -47,6 +49,8 @@ namespace mad::nexus {
         msquic_handle_uptr_t configuration = {nullptr, {}};
         msquic_handle_uptr_t listener      = {nullptr, {}};
         msquic_handle_uptr_t connection    = {nullptr, {}};
+
+        mad::log_printer logger{"console"};
 
         /**
          * Start listening on @p udp_port.
@@ -86,9 +90,9 @@ namespace mad::nexus {
                     return ptr;
                 }(),
                 msquic_handle_deleter([this](HQUIC handle) {
-                    fmt::println("msquic_listener deleter called {}", static_cast<void *>(handle));
+                    MAD_LOG_DEBUG_I(logger, "msquic_listener deleter called {}", static_cast<void *>(handle));
                     api->ListenerClose(handle);
-                    fmt::println("msquic_listener deleter done");
+                    MAD_LOG_DEBUG_I(logger, "msquic_listener deleter done");
                 }));
 
             // If failed, return.
@@ -105,7 +109,7 @@ namespace mad::nexus {
             const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(alpn_sv.length()),
                                       reinterpret_cast<std::uint8_t *>(const_cast<char *>(alpn_sv.data()))};
 
-            fmt::println("test {} {}", alpn_sv, alpn_sv.length());
+            MAD_LOG_DEBUG_I(logger, "test {} {}", alpn_sv, alpn_sv.length());
 
             // Start listening
             if (auto status = api->ListenerStart(listener.get(), &alpn, 1, &Address); QUIC_FAILED(status)) {
@@ -130,9 +134,9 @@ namespace mad::nexus {
                     return ptr;
                 }(),
                 msquic_handle_deleter([this](HQUIC handle) {
-                    fmt::println("msquic_connection deleter called {}", static_cast<void *>(handle));
+                    MAD_LOG_DEBUG_I(logger, "msquic_connection deleter called {}", static_cast<void *>(handle));
                     api->ListenerClose(handle);
-                    fmt::println("msquic_connection deleter done");
+                    MAD_LOG_DEBUG_I(logger, "msquic_connection deleter done");
                 }));
 
             if (!connection) {
@@ -186,17 +190,17 @@ namespace mad::nexus {
 
                     if (auto status = api->RegistrationOpen(&RegConfig, &reg); QUIC_FAILED(status)) {
                         // TODO: Throw a proper exception for the operation.
-                        fmt::println("registration open failed!");
+                        MAD_LOG_ERROR_I(logger, "registration open failed!");
                         return nullptr;
                     }
 
-                    fmt::println("registration open OK");
+                    MAD_LOG_DEBUG_I(logger, "registration open OK");
                     return reg;
                 }(),
                 msquic_handle_deleter([this](HQUIC handle) {
-                    fmt::println("msquic_registration deleter called {}", static_cast<void *>(handle));
+                    MAD_LOG_DEBUG_I(logger, "msquic_registration deleter called {}", static_cast<void *>(handle));
                     api->RegistrationClose(handle);
-                    fmt::println("msquic_registration deleter done");
+                    MAD_LOG_DEBUG_I(logger, "msquic_registration deleter done");
                 }));
             return static_cast<bool>(registration);
         }
@@ -241,15 +245,15 @@ namespace mad::nexus {
                             api->ConfigurationOpen(registration.get(), &alpn, 1, &settings, sizeof(settings), nullptr, &config);
                         QUIC_FAILED(status)) {
 
-                        fmt::println("configuration open failed!");
+                        MAD_LOG_ERROR_I(logger, "configuration open failed!");
                         return nullptr;
                     }
                     return config;
                 }(),
                 msquic_handle_deleter([this](HQUIC handle) {
-                    fmt::println("msquic_configuration deleter called");
+                    MAD_LOG_DEBUG_I(logger, "msquic_configuration deleter called");
                     api->ConfigurationClose(handle);
-                    fmt::println("msquic_configuration deleter done");
+                    MAD_LOG_DEBUG_I(logger, "msquic_configuration deleter done");
                 }));
 
             return static_cast<bool>(configuration);

@@ -33,6 +33,10 @@ clang_compiler_flags = [
     '-Wno-documentation',
     '-Wno-c++20-compat',
     '-Wno-gnu-zero-variadic-macro-arguments',
+    '-Wno-missing-prototypes',
+    '-Wno-documentation-unknown-command',
+    '-Wno-reserved-identifier',
+    '-Wno-global-constructors'
 ]
 
 clang_linker_flags = ['-stdlib=libc++']
@@ -129,13 +133,13 @@ subdir('madturks/nexus')
 executable(
     'msquic-test-server',
     'sample/src/msquic_test_server.cpp',
-    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
+    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
 )
 
 executable(
     'msquic-test-client',
     'sample/src/msquic_test_client.cpp',
-    dependencies: [nexus, fmt, flatbuffers, fbs_schemas],
+    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
 )
 
 executable(
