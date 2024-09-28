@@ -21,6 +21,7 @@
 
 #if !defined(SPECTRE_CONCURRENT_RESOURCE_USE_BOOST_SHARED_MUTEX) && (__cplusplus >= 201703L)
 #include <shared_mutex> // prerequisite : C++17
+#include <mutex>
 
 namespace mad {
     using shared_mutex_t = std::shared_mutex;

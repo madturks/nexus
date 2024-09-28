@@ -23,6 +23,7 @@
 // cppstd
 #include <random>
 #include <algorithm>
+#include <climits>
 
 // mad
 namespace mad::random {

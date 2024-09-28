@@ -1,0 +1,48 @@
+name: CI Meson
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build with ${{ matrix.meson_config }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        meson_config: [ 'clang', 'gcc' ]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install meson==1.5.2 conan==2.7.1 ninja
+          sudo apt install -y cmake gcc-14 g++-14 llvm-18 lld-18 clang-18 libclang-rt-18-dev libc++-18-dev libc++abi-18-dev libunwind-18-dev pkg-config ninja-build
+      - name: Configure Project
+        run: meson setup tgt --wipe --native-file=.config/meson-${{ matrix.meson_config }}
+        env:
+          PKG_CONFIG_PATH: /opt/conan-pkg-root
+      - name: Upload Configure Log on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ubuntu-24.04_Meson_BuildLog
+          path: tgt/meson-logs/meson-log.txt
+      - name: Build Project
+        run: meson compile -C tgt
+      - name: Run Tests # TODO: Move this to a separate job and add upload build artifacts here 
+        run: meson test -C tgt -v
+      - name: Upload Test Log
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ubuntu-24.04_Meson_TestLog
+          path: tgt/meson-logs/testlog.txt
