@@ -123,7 +123,7 @@ TEST_F(log_fixture, cause_format_exception) {
         ON_CALL(vp, get_text()).WillByDefault(testing::Return("Mock Me"));                                                                 \
         while (rem >= 0) {                                                                                                                 \
             uut.set_log_level(static_cast<mad::log_level>(rem));                                                                           \
-            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should be logged {}", vp.get_text());                                             \
+            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should be logged {}", vp.get_text());                                                \
             --rem;                                                                                                                         \
         }                                                                                                                                  \
         SUCCEED();                                                                                                                         \
@@ -134,7 +134,7 @@ TEST_F(log_fixture, cause_format_exception) {
         EXPECT_CALL(vp, get_text()).Times(0);                                                                                              \
         for (int i = std::to_underlying(LEVEL) + 1; i < std::to_underlying(mad::log_level::max); i++) {                                    \
             uut.set_log_level(static_cast<mad::log_level>(i));                                                                             \
-            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should not be logged {}", vp.get_text());                                         \
+            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should not be logged {}", vp.get_text());                                            \
         }                                                                                                                                  \
         SUCCEED();                                                                                                                         \
     }
@@ -158,7 +158,6 @@ LOG_TEST_CASE_SHOULD_NOT_LOG(mad::log_level::critical, MAD_LOG_, CRITICAL)
 static auto toml_file_path = std::filesystem::temp_directory_path().append("ncf.log.default.toml");
 
 static void write_default_config() {
-
     if (auto result = mad::make_temp_file()) {
         auto & [path, ofs] = (*result);
         ofs.write(default_config, static_cast<std::streamsize>(std::strlen(default_config)));

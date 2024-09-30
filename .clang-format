@@ -1,8 +1,8 @@
 ---
 Language: Cpp
+Standard: c++20     # C++20 
 # BasedOnStyle: Google
 
-Standard: c++20     # C++20 
 IndentWidth: 4      # Each `indent` is indented to 4 spaces
 TabWidth: 4         # Each `tab` is indented to 4 spaces
 UseTab: Never       # Do not use tab for indentation
@@ -10,24 +10,6 @@ UseCRLF: false      # Do not use windows style (CRLF) line endings
 ColumnLimit: 140    # Each line is 140 characters
 SortIncludes: false # Enable include sorting
 IndentCaseLabels: true
-
-
-# IncludeBlocks: Regroup
-
-# IncludeCategories:
-#   - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
-#     Priority:        2
-#     SortPriority:    2
-#   - Regex:           '^(<|"(gtest|gmock|boost|acu/cm|acu/fm|ncf)/)'
-#     Priority:        3
-#   - Regex:           '<[[:alnum:].]+>'
-#     Priority:        4
-#   - Regex:           '.*'
-#     Priority:        1
-#     SortPriority:    0
-
-# IncludeIsMainRegex: "(_test)?$"
-
 
 # ###################
 # Macro related stuff

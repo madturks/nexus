@@ -30,7 +30,7 @@ namespace mad::nexus {
        connections around to better balance the load.
     */
 
-    static __attribute__((always_inline)) QUIC_STATUS ServerConnectionCallbackImpl(HQUIC chandle, msquic_server & server,
+    static inline __attribute__((always_inline)) QUIC_STATUS ServerConnectionCallbackImpl(HQUIC chandle, msquic_server & server,
                                                                                    const QUIC_API_TABLE & api,
                                                                                    QUIC_CONNECTION_EVENT & event) {
 
@@ -122,7 +122,7 @@ namespace mad::nexus {
         return ServerConnectionCallbackImpl(chandle, server, api, *event);
     }
 
-    static __attribute__((always_inline)) QUIC_STATUS ServerListenerCallbackImpl([[maybe_unused]] HQUIC Listener, msquic_server & server,
+    static inline __attribute__((always_inline)) QUIC_STATUS ServerListenerCallbackImpl([[maybe_unused]] HQUIC Listener, msquic_server & server,
                                                                                  msquic_context & msquic_ctx, const QUIC_API_TABLE & api,
                                                                                  QUIC_LISTENER_EVENT & event) {
 

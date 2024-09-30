@@ -256,3 +256,5 @@ pyrightconfig.json
 tgt/
 *.capnp.c++
 *.capnp.h
+
+.gdb_history
