@@ -23,7 +23,7 @@ namespace mad::nexus {
 
         virtual ~msquic_base() override;
 
-        auto msquic_impl() -> const std::shared_ptr<void> & {
+        auto msquic_ctx() -> const std::shared_ptr<void> & {
             return msquic_pimpl;
         }
 
