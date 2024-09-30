@@ -37,7 +37,7 @@ namespace mad::nexus {
         std::function<void(HQUIC)> deleter;
     };
 
-    struct msquic_api {
+    struct msquic_context {
 
         using msquic_api_uptr_t            = std::unique_ptr<const QUIC_API_TABLE, decltype(&MsQuicClose)>;
         using msquic_handle_uptr_t         = std::unique_ptr<QUIC_HANDLE, msquic_handle_deleter>;
@@ -109,8 +109,6 @@ namespace mad::nexus {
             const QUIC_BUFFER alpn = {static_cast<std::uint32_t>(alpn_sv.length()),
                                       reinterpret_cast<std::uint8_t *>(const_cast<char *>(alpn_sv.data()))};
 
-            MAD_LOG_DEBUG_I(logger, "test {} {}", alpn_sv, alpn_sv.length());
-
             // Start listening
             if (auto status = api->ListenerStart(listener.get(), &alpn, 1, &Address); QUIC_FAILED(status)) {
                 listener.reset(nullptr);
@@ -159,9 +157,9 @@ namespace mad::nexus {
             return quic_error_code::success;
         }
 
-        static std::expected<std::unique_ptr<msquic_api>, quic_error_code> make(const quic_configuration & cfg) {
+        static std::expected<std::unique_ptr<msquic_context>, quic_error_code> make(const quic_configuration & cfg) {
 
-            auto ctx = std::make_unique<msquic_api>();
+            auto ctx = std::make_unique<msquic_context>();
 
             ctx->api = msquic_api_uptr_t(
                 []() -> const QUIC_API_TABLE * {
@@ -190,17 +188,16 @@ namespace mad::nexus {
 
                     if (auto status = api->RegistrationOpen(&RegConfig, &reg); QUIC_FAILED(status)) {
                         // TODO: Throw a proper exception for the operation.
-                        MAD_LOG_ERROR_I(logger, "registration open failed!");
+                        MAD_LOG_ERROR_I(logger, "MSQUIC RegistrationOpen failed!");
                         return nullptr;
                     }
 
-                    MAD_LOG_DEBUG_I(logger, "registration open OK");
+                    MAD_LOG_DEBUG_I(logger, "MSQUIC registration object created.");
                     return reg;
                 }(),
                 msquic_handle_deleter([this](HQUIC handle) {
-                    MAD_LOG_DEBUG_I(logger, "msquic_registration deleter called {}", static_cast<void *>(handle));
+                    MAD_LOG_DEBUG_I(logger, "MSQUIC registration deleter called for: {}", static_cast<void *>(handle));
                     api->RegistrationClose(handle);
-                    MAD_LOG_DEBUG_I(logger, "msquic_registration deleter done");
                 }));
             return static_cast<bool>(registration);
         }
@@ -227,6 +224,11 @@ namespace mad::nexus {
             // any streams from the peer.
             settings.PeerBidiStreamCount         = 1;
             settings.IsSet.PeerBidiStreamCount   = true;
+
+            // // Enable multireceive for testing
+            // settings.StreamMultiReceiveEnabled = true;
+            // settings.IsSet.StreamMultiReceiveEnabled = true;
+
             return settings;
         }
 
@@ -293,8 +295,8 @@ namespace mad::nexus {
          * configuration and returns an expected result with a unique pointer to the msquic context
          * or an error code.
          **/
-        static std::expected<std::unique_ptr<msquic_api>, quic_error_code> initialize_msquic(const quic_configuration & cfg,
-                                                                                             std::unique_ptr<msquic_api> ctx) {
+        static std::expected<std::unique_ptr<msquic_context>, quic_error_code> initialize_msquic(const quic_configuration & cfg,
+                                                                                             std::unique_ptr<msquic_context> ctx) {
             assert(ctx->api);
             if (!ctx->initialize_registration(cfg.appname)) {
                 return std::unexpected(quic_error_code::registration_initialization_failed);
@@ -312,8 +314,8 @@ namespace mad::nexus {
         }
     };
 
-    inline msquic_api & o2i(const std::shared_ptr<void> & ptr) {
-        return *static_cast<msquic_api *>(ptr.get());
+    inline msquic_context & o2i(const std::shared_ptr<void> & ptr) {
+        return *static_cast<msquic_context *>(ptr.get());
     }
 
 } // namespace mad::nexus

@@ -20,6 +20,7 @@
 namespace mad::nexus {
 
     msquic_server::msquic_server(quic_configuration cfg) : quic_base(cfg), msquic_base(cfg) {}
+
     msquic_server::~msquic_server() = default;
 
     /*
@@ -29,33 +30,36 @@ namespace mad::nexus {
        connections around to better balance the load.
     */
 
-    static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context, QUIC_CONNECTION_EVENT * event) {
-        assert(context);
-        auto & server        = *static_cast<msquic_server *>(context);
-        auto & msquic_ctx    = o2i(server.msquic_impl());
+    static __attribute__((always_inline)) QUIC_STATUS ServerConnectionCallbackImpl(HQUIC chandle, msquic_server & server,
+                                                                                   const QUIC_API_TABLE & api,
+                                                                                   QUIC_CONNECTION_EVENT & event) {
 
         QUIC_ADDR_STR remote = [&]() {
             QUIC_ADDR remote_addr;
             std::uint32_t addr_size = sizeof(QUIC_ADDR);
-            msquic_ctx.api->GetParam(chandle, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
+            api.GetParam(chandle, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
             QUIC_ADDR_STR str;
             QuicAddrToString(&remote_addr, &str);
             return str;
         }();
 
-        switch (event->Type) {
+        switch (event.Type) {
             case QUIC_CONNECTION_EVENT_CONNECTED: {
                 MAD_LOG_INFO_I(server, "New client connected: {}", remote.Address);
 
                 auto wa = server.connections().exclusive_access();
                 if (auto itr = wa->find(static_cast<void *>(chandle)); itr == wa->end()) {
-                    if (const auto & [citr, emplaced] = wa->emplace(chandle, connection_context{chandle, {}}); !emplaced) {
+
+                    std::shared_ptr<void> connection_shared_ptr{chandle, [&api](void * sp) {
+                                                                    api.ConnectionClose(static_cast<HQUIC>(sp));
+                                                                }};
+
+                    if (const auto & [citr, emplaced] = wa->emplace(std::move(connection_shared_ptr), connection_context{chandle, {}});
+                        !emplaced) {
                         MAD_LOG_ERROR_I(server, "connection could not be stored!");
-                        msquic_ctx.api->ConnectionClose(chandle);
                         return QUIC_STATUS_SUCCESS;
                     } else {
-                        msquic_ctx.api->ConnectionSendResumptionTicket(chandle, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
-
+                        api.ConnectionSendResumptionTicket(chandle, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
                         // Notify app
                         assert(server.callbacks.on_connected);
                         server.callbacks.on_connected(&citr->second);
@@ -76,57 +80,62 @@ namespace mad::nexus {
                     wa->erase(itr);
                 }
                 MAD_LOG_INFO_I(server, "Connection shutdown complete {}", remote.Address);
-                // Release the connection for good.
-                msquic_ctx.api->ConnectionClose(chandle);
             } break;
 
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
-                if (event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
+                if (event.SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
                     MAD_LOG_INFO_I(server, "Connection shut down on idle.");
                 } else {
-                    MAD_LOG_INFO_I(server, "Connection shut down by transport, status: {}", event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
+                    MAD_LOG_INFO_I(server, "Connection shut down by transport, status: {}", event.SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
                 }
             } break;
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
-                MAD_LOG_INFO_I(server, "Connection shut down by peer, error code: {}", event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
+                MAD_LOG_INFO_I(server, "Connection shut down by peer, error code: {}", event.SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
             } break;
 
             case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
                 // We shouldn't receive peer_stream_started event
                 // as we're not allowing peer initiated streams.
                 // Shutdown them directly.
-                auto shandle = event->PEER_STREAM_STARTED.Stream;
-                msquic_ctx.api->StreamClose(shandle);
+                auto shandle = event.PEER_STREAM_STARTED.Stream;
+                api.StreamClose(shandle);
             } break;
             case QUIC_CONNECTION_EVENT_RESUMED: {
                 MAD_LOG_INFO_I(server, "Connection resumed!");
             } break;
 
             default: {
-                MAD_LOG_WARN_I(server, "Unhandled connection event: {}", std::to_underlying(event->Type));
+                MAD_LOG_WARN_I(server, "Unhandled connection event: {}", std::to_underlying(event.Type));
             } break;
         }
 
         return QUIC_STATUS_SUCCESS;
     }
 
-    static QUIC_STATUS ServerListenerCallback([[maybe_unused]] HQUIC Listener, void * context, QUIC_LISTENER_EVENT * Event) {
-
+    static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context, QUIC_CONNECTION_EVENT * event) {
+        assert(chandle);
         assert(context);
+        assert(event);
         auto & server     = *static_cast<msquic_server *>(context);
-        auto & msquic_ctx = o2i(server.msquic_impl());
+        auto & msquic_ctx = o2i(server.msquic_ctx());
+        auto & api        = *msquic_ctx.api;
+        return ServerConnectionCallbackImpl(chandle, server, api, *event);
+    }
 
-        MAD_LOG_INFO_I(server, "ServerListenerCallback() - Event Type: `{}`", std::to_underlying(Event->Type));
+    static __attribute__((always_inline)) QUIC_STATUS ServerListenerCallbackImpl([[maybe_unused]] HQUIC Listener, msquic_server & server,
+                                                                                 msquic_context & msquic_ctx, const QUIC_API_TABLE & api,
+                                                                                 QUIC_LISTENER_EVENT & event) {
 
-        switch (Event->Type) {
+        MAD_LOG_INFO_I(server, "ServerListenerCallback() - Event Type: `{}`", std::to_underlying(event.Type));
+
+        switch (event.Type) {
             case QUIC_LISTENER_EVENT_NEW_CONNECTION: {
                 MAD_LOG_INFO_I(server, "Listener received a new connection.");
                 // A new connection is being attempted by a client. For the handshake to
                 // proceed, the server must provide a configuration for QUIC to use. The
                 // app MUST set the callback handler before returning.
-                msquic_ctx.api->SetCallbackHandler(Event->NEW_CONNECTION.Connection, reinterpret_cast<void *>(ServerConnectionCallback),
-                                                   &server);
-                return msquic_ctx.api->ConnectionSetConfiguration(Event->NEW_CONNECTION.Connection, msquic_ctx.configuration.get());
+                api.SetCallbackHandler(event.NEW_CONNECTION.Connection, reinterpret_cast<void *>(ServerConnectionCallback), &server);
+                return api.ConnectionSetConfiguration(event.NEW_CONNECTION.Connection, msquic_ctx.configuration.get());
             }
             case QUIC_LISTENER_EVENT_STOP_COMPLETE:
                 break;
@@ -134,12 +143,23 @@ namespace mad::nexus {
         return QUIC_STATUS_NOT_SUPPORTED;
     }
 
+    static QUIC_STATUS ServerListenerCallback([[maybe_unused]] HQUIC hlistener, void * context, QUIC_LISTENER_EVENT * event) {
+        assert(hlistener);
+        assert(context);
+        assert(event);
+
+        auto & server     = *static_cast<msquic_server *>(context);
+        auto & msquic_ctx = o2i(server.msquic_ctx());
+        auto & api        = *msquic_ctx.api;
+        return ServerListenerCallbackImpl(hlistener, server, msquic_ctx, api, *event);
+    }
+
     std::error_code msquic_server::listen() {
-        if (!msquic_impl()) {
+        if (!msquic_ctx()) {
             return quic_error_code::uninitialized;
         }
 
-        return o2i(msquic_impl()).listen(config.udp_port_number, config.alpn, ServerListenerCallback, this);
+        return o2i(msquic_ctx()).listen(config.udp_port_number, config.alpn, ServerListenerCallback, this);
     }
 
 } // namespace mad::nexus

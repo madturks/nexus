@@ -2,8 +2,10 @@
 
 #include <mad/nexus/msquic/msquic_base.hpp>
 #include <mad/nexus/quic_server.hpp>
-#include <mad/concurrent.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/shared_ptr_raw_equal.hpp>
+#include <mad/nexus/shared_ptr_raw_hash.hpp>
+#include <mad/concurrent.hpp>
 
 #include <memory>
 #include <system_error>
@@ -28,7 +30,8 @@ namespace mad::nexus {
         }
 
     private:
-        mad::concurrent<std::unordered_map<void *, connection_context>> connection_map;
+        mad::concurrent<std::unordered_map<std::shared_ptr<void>, connection_context, shared_ptr_raw_hash, shared_ptr_raw_equal>>
+            connection_map;
     };
 
 } // namespace mad::nexus

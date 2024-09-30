@@ -15,6 +15,18 @@
 #include <thread>
 #include <utility>
 
+namespace {
+    static mad::log_printer & stream_logger() {
+        static auto sl = [] {
+            static mad::log_printer stream_logger{"quic-stream"};
+            stream_logger.set_log_level(mad::log_level::debug);
+            return stream_logger;
+        }();
+        return sl;
+    }
+
+} // namespace
+
 namespace mad::nexus {
 
     constexpr std::string_view quic_stream_event_to_str(int eid) {
@@ -45,59 +57,59 @@ namespace mad::nexus {
         return "undefined";
     }
 
-    QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
-        assert(context);
-        auto & sctx = *static_cast<stream_context *>(context);
+    inline __attribute__((always_inline)) QUIC_STATUS StreamCallbackImpl([[maybe_unused]] HQUIC stream, stream_context & sctx,
+                                                                         QUIC_STREAM_EVENT & event) {
 
-        auto ctx    = reinterpret_cast<msquic_base *>(context);
-
-        MAD_LOG_DEBUG_I((*ctx), "StreamCallback  - {} - {}", quic_stream_event_to_str(event->Type), std::to_underlying(event->Type));
+        MAD_LOG_DEBUG_I(stream_logger(), "StreamCallback  - {} - {}", quic_stream_event_to_str(event.Type), std::to_underlying(event.Type));
 
         // we can use the connection as context here?
-        switch (event->Type) {
+        switch (event.Type) {
             case QUIC_STREAM_EVENT_SEND_COMPLETE: {
                 //
                 // A previous StreamSend call has completed, and the context is being
                 // returned back to the app.
                 //
-                MAD_LOG_DEBUG_I((*ctx), "data sent to stream %d", event->SEND_COMPLETE.ClientContext);
+                MAD_LOG_DEBUG_I(stream_logger(), "data sent to stream %p", event.SEND_COMPLETE.ClientContext);
 
                 // The size does not matter for the default allocator.
                 // FIXME: Get this dynamically from the user
-                flatbuffers::DefaultAllocator::dealloc(event->SEND_COMPLETE.ClientContext, 0);
+                flatbuffers::DefaultAllocator::dealloc(event.SEND_COMPLETE.ClientContext, 0);
             } break;
 
             case QUIC_STREAM_EVENT_RECEIVE: {
-                for (std::uint32_t i = 0; i < event->RECEIVE.BufferCount; i++) {
-                    sctx.rbuf().put(event->RECEIVE.Buffers [i].Buffer, event->RECEIVE.Buffers [i].Length);
+                for (std::uint32_t i = 0; i < event.RECEIVE.BufferCount; i++) {
+                    sctx.rbuf().put(event.RECEIVE.Buffers [i].Buffer, event.RECEIVE.Buffers [i].Length);
                 }
 
                 auto consumed_bytes = sctx.on_data_received(sctx.rbuf().available_span());
                 sctx.rbuf().mark_as_read(consumed_bytes);
-                MAD_LOG_DEBUG_I((*ctx), "total {}", sctx.rbuf().consumed_space());
 
-                MAD_LOG_DEBUG_I((*ctx), "Received data from the remote count:{} total_size:{}", event->RECEIVE.BufferCount,
-                             event->RECEIVE.TotalBufferLength);
+                MAD_LOG_DEBUG_I(stream_logger(), "total {}", sctx.rbuf().consumed_space());
+
+                MAD_LOG_DEBUG_I(stream_logger(), "Received data from the remote count:{} total_size:{}", event.RECEIVE.BufferCount,
+                                event.RECEIVE.TotalBufferLength);
 
             } break;
 
             case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE: {
                 std::stringstream aq;
                 aq << std::this_thread::get_id();
-                MAD_LOG_DEBUG_I((*ctx), "stream shutdown from thread {}", aq.str());
+                MAD_LOG_DEBUG_I(stream_logger(), "stream shutdown from thread {}", aq.str());
 
-                if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
-                    o2i(ctx->msquic_impl()).api->StreamClose(stream);
-                }
-
-                if (auto itr = sctx.connection().streams.find(stream); itr == sctx.connection().streams.end()) {
-                    MAD_LOG_DEBUG_I((*ctx), "stream erased from connection map");
+                if (auto itr = sctx.connection().streams.find(static_cast<void *>(stream)); itr == sctx.connection().streams.end()) {
+                    MAD_LOG_DEBUG_I(stream_logger(), "stream erased from connection map");
                     sctx.connection().streams.erase(itr);
                 }
 
             } break;
+            case QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE: {
+                std::stringstream aq;
+                aq << std::this_thread::get_id();
+                MAD_LOG_DEBUG_I(stream_logger(), "stream send shutdown from thread {}", aq.str());
+
+            } break;
             default: {
-                MAD_LOG_WARN_I((*ctx), "Unhandled stream event: {}", std::to_underlying(event->Type));
+                MAD_LOG_WARN_I(stream_logger(), "Unhandled stream event: {}", std::to_underlying(event.Type));
             }
         }
 
@@ -105,9 +117,17 @@ namespace mad::nexus {
         return QUIC_STATUS_SUCCESS;
     }
 
+    QUIC_STATUS StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event) {
+        assert(stream);
+        assert(context);
+        assert(event);
+        return StreamCallbackImpl(stream, *static_cast<stream_context *>(context), *event);
+    };
+
     msquic_base::msquic_base(quic_configuration cfg) : quic_base(cfg), log_printer("console") {
         set_log_level(log_level::trace);
     }
+
     msquic_base::~msquic_base() = default;
 
     std::error_code msquic_base::init() {
@@ -115,7 +135,7 @@ namespace mad::nexus {
             return quic_error_code::already_initialized;
         }
 
-        auto result = msquic_api::make(config);
+        auto result = msquic_context::make(config);
         if (result) {
             msquic_pimpl = std::move(result.value());
             return quic_error_code::success;
@@ -138,9 +158,12 @@ namespace mad::nexus {
             return std::unexpected(quic_error_code::stream_open_failed);
         }
 
-        auto [itr, inserted] = cctx->streams.emplace(new_stream, stream_context{new_stream, *cctx, data_callback});
+        std::shared_ptr<void> stream_shared_ptr{new_stream, [&api](void * sp) {
+                                                    api->StreamClose(static_cast<HQUIC>(sp));
+                                                }};
+
+        auto [itr, inserted] = cctx->streams.emplace(std::move(stream_shared_ptr), stream_context{new_stream, *cctx, data_callback});
         if (!inserted) {
-            api->StreamClose(new_stream);
             return std::unexpected(quic_error_code::stream_insert_to_map_failed);
         }
 
