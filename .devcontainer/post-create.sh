@@ -53,6 +53,14 @@ function install_zsh_and_oh_my_zsh {
     return $?
 }
 
+function install_iwyu_from_source {
+    git clone --single-branch --branch clang_18 https://github.com/include-what-you-use/include-what-you-use.git /tmp/iwyu
+    mkdir -p /tmp/iwyu-build
+    cmake -S /tmp/iwyu -B /tmp/iwyu-build -G "Unix Makefiles" -DCMAKE_PREFIX_PATH=/usr/lib/llvm-18
+    cmake --build /tmp/iwyu-build --parallel=$(nproc)
+    sudo cmake --install /tmp/iwyu-build
+}
+
 function put_gdbinit_file {
     sudo su ${USERNAME} -c "cp .gdbinit /home/${USERNAME}/.gdbinit"
 }
@@ -62,8 +70,8 @@ function init_conan_pkg_root {
 }
 
 
-
 install_zsh_and_oh_my_zsh
+install_iwyu_from_source
 put_gdbinit_file
 init_conan_pkg_root
 
