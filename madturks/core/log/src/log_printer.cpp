@@ -1,6 +1,3 @@
-
-
-#include "mad/meta/source_location.hpp"
 #include <mad/log_printer.hpp>
 
 #include <spdlog/spdlog.h>

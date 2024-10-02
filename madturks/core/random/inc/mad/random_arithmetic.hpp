@@ -58,12 +58,12 @@ namespace mad::random {
      * @tparam Iter Auto-deduced iterator type
      * @tparam ValueType Auto-deduced iterator value type
      */
-    template <typename Iter, typename ValueType = typename Iter::value_type>
-    requires(std::is_arithmetic_v<ValueType>)
-    inline auto fill(Iter begin, Iter end, ValueType lower_bound = std::numeric_limits<ValueType>::min(),
-                     ValueType upper_bound = std::numeric_limits<ValueType>::max()) {
+    template <typename Iter>
+    requires(std::is_arithmetic_v<typename Iter::value_type>)
+    inline auto fill(Iter begin, Iter end, typename Iter::value_type lower_bound = std::numeric_limits<typename Iter::value_type>::min(),
+                     typename Iter::value_type upper_bound = std::numeric_limits<typename Iter::value_type>::max()) {
         while (begin != end) {
-            *begin++ = generate<ValueType>(lower_bound, upper_bound);
+            *begin++ = generate<typename Iter::value_type>(lower_bound, upper_bound);
         }
     }
 
@@ -126,4 +126,4 @@ namespace mad::random {
         }
         return container;
     }
-} // namespace mad
+} // namespace mad::random

@@ -20,7 +20,7 @@ static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::s
     return 0;
 }
 
-static __attribute__((always_inline)) QUIC_STATUS ClientConnectionCallbackImpl([[maybe_unused]] HQUIC chandle,
+static inline __attribute__((always_inline)) QUIC_STATUS ClientConnectionCallbackImpl([[maybe_unused]] HQUIC chandle,
                                                                                mad::nexus::msquic_client & client,
                                                                                const QUIC_API_TABLE & api,
                                                                                mad::nexus::connection_context & connection_context,

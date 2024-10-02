@@ -9,10 +9,9 @@
     "clangd.arguments": [
         "-pretty",
         "--background-index",
-        "--compile-commands-dir=tgt"
+        "--compile-commands-dir=tgt",
+        "-header-insertion=never"
     ],
     "clangd.inactiveRegions.useBackgroundHighlight": true,
     "clangd.detectExtensionConflicts": true,
-    "C_Cpp.default.compileCommands": "/workspace/madturks/nexus/tgt/compile_commands.json",
-    "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
 }

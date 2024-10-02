@@ -53,11 +53,11 @@ if compiler.get_id() == 'clang'
     endforeach
 endif
 
-conan_profile = meson.project_source_root() + '/.config/conan-profiles/' + compiler.get_id()
 
-message('conan profile is : @0@'.format(conan_profile))
 
 # The project uses conan as a dependency manager. Call conan to fetch the dependencies.
+conan_profile = meson.project_source_root() + '/.config/conan-profiles/' + compiler.get_id()
+message('Running `conan` with profile: @0@'.format(conan_profile))
 run_command(
     'conan',
     'install',
@@ -73,14 +73,12 @@ run_command(
 # dependency(...) calls below should be able to find the dependencies installed
 # by Conan.
 
-# boost = dependency('boost')
 flatbuffers = dependency('flatbuffers', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
 gtest = dependency('gtest', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
-# abseil = dependency('abseil', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')

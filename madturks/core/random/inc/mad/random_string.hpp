@@ -15,28 +15,28 @@ namespace mad::random {
      *
      * @return A std::span which contains A-Za-z0-9 charset
      */
-    [[nodiscard]] auto ascii_alphanumeric_charset() -> const std::span<char> &;
+    [[nodiscard]] auto ascii_alphanumeric_charset() -> const std::span<const char> &;
 
     /**
      * @brief Span of ascii number characters only
      *
      * @return A std::span which contains 0-9 charset
      */
-    [[nodiscard]] auto ascii_number_charset() -> const std::span<char> &;
+    [[nodiscard]] auto ascii_number_charset() -> const std::span<const char> &;
 
     /**
      * @brief Span of lowercase ascii characters only
      *
      * @return A std::span which contains a-z charset
      */
-    [[nodiscard]] auto ascii_lowercase_charset() -> const std::span<char> &;
+    [[nodiscard]] auto ascii_lowercase_charset() -> const std::span<const char> &;
 
     /**
      * @brief Span of uppercase ascii characters only
      *
      * @return A std::span which contains A-Z charset
      */
-    [[nodiscard]] auto ascii_uppercase_charset() -> const std::span<char> &;
+    [[nodiscard]] auto ascii_uppercase_charset() -> const std::span<const char> &;
 
     /**
      * Generate a single random std::string.
@@ -49,7 +49,7 @@ namespace mad::random {
     template <typename T>
     requires(std::is_same_v<std::string, T>)
     [[nodiscard]] inline auto generate(std::size_t min_l = 16, std::size_t max_l = 256,
-                                       const std::span<char> & charset = ascii_alphanumeric_charset()) -> std::string {
+                                       const std::span<const char> & charset = ascii_alphanumeric_charset()) -> std::string {
         std::string v{};
         auto string_len = generate<std::size_t>(min_l, max_l);
         v.resize(string_len);
@@ -133,7 +133,7 @@ namespace mad::random {
     template <typename Container, typename ValueType = typename Container::value_type, typename BoundType = std::size_t>
     requires(std::is_same_v<std::string, ValueType> && has_unary_insert<Container> && std::is_default_constructible_v<Container>)
     [[nodiscard]]
-    inline auto make(std::size_t count, BoundType min_length = 16, BoundType max_length = 256) {
+    inline auto make(std::size_t count, BoundType min_length = 16zu, BoundType max_length = 256zu) {
         Container container;
         while (count) {
             while (container.insert(generate<ValueType>(min_length, max_length)).second == false)
