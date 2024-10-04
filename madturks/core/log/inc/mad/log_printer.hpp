@@ -63,6 +63,7 @@ namespace mad {
          */
         log_printer(std::shared_ptr<void> logger);
 
+    
         /**
          * Destructor
          */

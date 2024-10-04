@@ -113,7 +113,7 @@ msquic = declare_dependency(
     dependencies: compiler.find_library(
         'msquic',
         dirs: meson.project_source_root() + '/vendor/msquic/2.4.4/bin',
-        has_headers: ['msquic.h', 'msquic_posix.h', 'quic_sal_stub.h'],
+        has_headers: ['msquic.h', 'msquic_posix.h', 'quic_sal_stub.h', 'msquic.hpp', 'msquicp.h'],
         header_include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),
         required: true
     ),
@@ -122,6 +122,7 @@ msquic = declare_dependency(
     compile_args: '-DQUIC_API_ENABLE_PREVIEW_FEATURES=1'
 )
 
+subdir('madturks/core/macro')
 subdir('madturks/core/meta')
 subdir('madturks/core/concept')
 subdir('madturks/core/random')

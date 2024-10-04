@@ -25,18 +25,62 @@ namespace mad::nexus {
 
     class quic_base {
     public:
-        quic_base(quic_configuration cfg) : config(cfg) {}
+        quic_base() {}
 
+        /**
+         * Initialize the needed resources
+         *
+         * @return std::error_code indicating the status.
+         */
         [[nodiscard]] virtual std::error_code init() = 0;
-        [[nodiscard]] virtual auto open_stream(connection_context * cctx, stream_data_callback_t data_callback)
+
+        /**
+         * Open a new stream in given connection context (@p cctx)
+         *
+         * @param cctx The owner connection context
+         * @param data_callback The function to call when stream data arrives (optional).
+         *
+         * @return stream_context* when successful, std::error_code otherwise.
+         */
+        [[nodiscard]] virtual auto open_stream(connection_context * cctx, std::optional<stream_data_callback_t> data_callback)
             -> std::expected<stream_context *, std::error_code>                                = 0;
+
+        /**
+         * Close the given stream.
+         *
+         * @param sctx Stream's context object.
+         *
+         * @return std::error_code Error code indicating the close status.
+         */
         [[nodiscard]] virtual auto close_stream(stream_context * sctx) -> std::error_code      = 0;
+
+        /**
+         * Send data to an already open stream
+         *
+         * @param sctx The stream's context ojbect
+         * @param buf The buffer to send
+         *
+         * @return std::size_t The amount of bytes successfully written to the send buffer.
+         */
         [[nodiscard]] virtual auto send(stream_context * sctx, send_buffer buf) -> std::size_t = 0;
 
+        /**
+         * The callback functions for user application.
+         */
         struct callback_table {
+            /**
+             * Invoked when a new connection is established.
+             */
             connection_callback_t on_connected;
+            /**
+             * Invoked when a connection is disconnected and about
+             * to be destroyed.
+             */
             connection_callback_t on_disconnected;
-            stream_data_callback_t on_stream_open;
+            /**
+             * Invoked when data is received from a stream.
+             */
+            stream_data_callback_t on_stream_data_received;
         } callbacks;
 
         template <typename MT, typename F>
@@ -46,9 +90,7 @@ namespace mad::nexus {
             lambda(msgt);
             auto obj = msgt.Finish();
             fbb.Finish(obj);
-
             mad::nexus::send_buffer buf{};
-
             buf.used = fbb.GetSize();
             buf.buf  = fbb.ReleaseRaw(buf.buf_size, buf.offset);
             return buf;
@@ -58,7 +100,5 @@ namespace mad::nexus {
 
         virtual ~quic_base();
 
-    protected:
-        quic_configuration config;
     };
 } // namespace mad::nexus

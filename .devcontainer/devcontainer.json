@@ -40,7 +40,8 @@
 				"mesonbuild.mesonbuild",
 				"shyykoserhiy.vscode-spotify",
 				"tonybaloney.vscode-pets",
-				"redhat.vscode-yaml"
+				"redhat.vscode-yaml",
+				"cschlosser.doxdocgen"
 			],
 			"settings": {
                 "terminal.integrated.profiles.linux": {

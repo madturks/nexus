@@ -1,0 +1,5 @@
+#pragma once
+
+#include <mad/log_macros.hpp>
+#include <mad/log_level.hpp>
+#include <mad/log_printer.hpp>

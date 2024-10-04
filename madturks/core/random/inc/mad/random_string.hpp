@@ -130,10 +130,10 @@ namespace mad::random {
      * @return Container filled with `count` number of elements randomly generated
      * in length boundary of [lower_bound, upper_bound]
      */
-    template <typename Container, typename ValueType = typename Container::value_type, typename BoundType = std::size_t>
+    template <typename Container, typename ValueType = typename Container::value_type>
     requires(std::is_same_v<std::string, ValueType> && has_unary_insert<Container> && std::is_default_constructible_v<Container>)
     [[nodiscard]]
-    inline auto make(std::size_t count, BoundType min_length = 16zu, BoundType max_length = 256zu) {
+    inline auto make(std::size_t count, std::size_t min_length = 16zu, std::size_t max_length = 256zu) {
         Container container;
         while (count) {
             while (container.insert(generate<ValueType>(min_length, max_length)).second == false)

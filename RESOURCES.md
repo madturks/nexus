@@ -26,3 +26,14 @@ Also install this plugin:
 https://github.com/siemens/cshargextcap/releases
 
 then navigate to: http://localhost:5001/
+
+
+/*
+    Generally, MsQuic creates multiple threads to parallelize work, and
+   therefore will make parallel/overlapping upcalls to the application, but
+   not for the same connection. All upcalls to the app for a single
+   connection and all child streams are always delivered serially. This is
+   not to say, though, it will always be on the same thread. MsQuic does
+   support the ability to shuffle connections around to better balance the
+   load.
+*/

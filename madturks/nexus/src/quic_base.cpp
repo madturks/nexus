@@ -9,9 +9,15 @@ namespace mad::nexus {
         // Reserved space for QUIC_BUFFER. One allocation is enough.
         constexpr auto k_QuicBufferSize                                   = 16;
         constexpr auto k_QuicBufferAlignment                              = 8;
+        
         // Align the buffer properly.
-        builder.PreAlign(k_QuicBufferSize, k_QuicBufferAlignment);
-        builder.Pad(k_QuicBufferSize);
+        //builder.PreAlign(k_QuicBufferSize, k_QuicBufferAlignment);
+        constexpr std::uint8_t res [k_QuicBufferSize]= {0x01,0x02,0x03,0x04};
+
+        // FIXME: Find a way to make it work.
+        builder.PushBytes(res, sizeof(res));
+       
+        //builder.AddStruct(f, &x);
         assert(builder.GetSize() == k_QuicBufferSize);
         return builder;
     }

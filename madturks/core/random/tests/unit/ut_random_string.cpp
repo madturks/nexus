@@ -9,7 +9,6 @@ namespace mad::random::test {
         const auto & charset = ascii_alphanumeric_charset();
         ASSERT_FALSE(charset.empty());
         for (char c : charset) {
-            std::cout << c << std::endl;
             ASSERT_TRUE((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'));
         }
     }
@@ -48,7 +47,6 @@ namespace mad::random::test {
         std::vector<std::string> strings(10);
         fill(strings.begin(), strings.end(), 16, 256);
         for (const auto & str : strings) {
-            std::cout << str << std::endl;
             ASSERT_GE(str.length(), 16);
             ASSERT_LE(str.length(), 256);
         }

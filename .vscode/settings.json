@@ -13,5 +13,11 @@
         "-header-insertion=never"
     ],
     "clangd.inactiveRegions.useBackgroundHighlight": true,
+    "clangd.checkUpdates": false,
     "clangd.detectExtensionConflicts": true,
+    "search.useIgnoreFiles": true,
+    "search.exclude": {
+        "tgt/**": true,
+        "vendor/**": true
+    },
 }

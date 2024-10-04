@@ -32,7 +32,7 @@ function install_zsh_and_oh_my_zsh {
     # sudo su ${1} -c "cp /home/${1}/.oh-my-zsh/templates/zshrc.zsh-template /home/${1}/.zshrc"
     
     # Replace the default theme with `funky` theme
-    sudo sed -i 's/^ZSH_THEME="devcontainers"/ZSH_THEME="linuxonly"/' /home/${USERNAME}/.zshrc
+    sudo sed -i 's/^ZSH_THEME="devcontainers"/ZSH_THEME="refined"/' /home/${USERNAME}/.zshrc
     
     # Install oh-my-zsh plugins
     
