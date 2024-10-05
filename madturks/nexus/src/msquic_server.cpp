@@ -1,165 +1,266 @@
-#include <flatbuffers/detached_buffer.h>
-#include <mad/nexus/msquic/msquic_server.hpp>
-#include <mad/nexus/quic_error_code.hpp>
 #include <mad/circular_buffer_vm.hpp>
 #include <mad/concurrent.hpp>
-#include <mad/log_printer.hpp>
+#include <mad/log>
+#include <mad/macro>
+#include <mad/nexus/msquic/msquic_server.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_error_code.hpp>
 
-#include <memory>
-#include <expected>
-#include <netinet/in.h>
-#include <system_error>
-
-#include <msquic.h>
+#include <flatbuffers/detached_buffer.h>
 #include <fmt/format.h>
+#include <msquic.hpp>
 
-#include <mad/nexus/msquic/msquic_api.inl>
+#include <netinet/in.h>
+
+#include <expected>
+#include <memory>
+#include <system_error>
 #include <utility>
+
+namespace {
+
+using connected_event = decltype(QUIC_CONNECTION_EVENT::CONNECTED);
+using shutdown_complete_event =
+    decltype(QUIC_CONNECTION_EVENT::SHUTDOWN_COMPLETE);
+using new_connection_event = decltype(QUIC_LISTENER_EVENT::NEW_CONNECTION);
+
+using server = mad::nexus::msquic_server;
+
+/**
+ * Get the remote endpoint address of a connection
+ * in QUIC_ADDR_STR forat.
+ *
+ * @param connection The connection
+ *
+ * @return QUIC_ADDR_STR address in QUIC_ADDR_STR forat.
+ */
+static QUIC_ADDR_STR get_remote_address(HQUIC connection) {
+    QUIC_ADDR remote_addr;
+    std::uint32_t addr_size = sizeof(QUIC_ADDR);
+    MsQuic->GetParam(
+        connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
+    QUIC_ADDR_STR str;
+    QuicAddrToString(&remote_addr, &str);
+    return str;
+}
+
+/**
+ * New connection handler function
+ *
+ * @param new_connection New connection handle
+ * @param event New connection event details
+ * @param server The owning server
+ *
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventConnected(
+    HQUIC new_connection, [[maybe_unused]] const connected_event & event,
+    server & server) {
+    auto remote = get_remote_address(new_connection);
+    MAD_LOG_INFO_I(server, "New client connected: {}", remote.Address);
+
+    std::shared_ptr<void> connection_shared_ptr{ new_connection, [](void * sp) {
+                                                    MsQuic->ConnectionClose(
+                                                        static_cast<HQUIC>(sp));
+                                                } };
+
+    return server.add_new_connection(connection_shared_ptr)
+        .and_then([&](auto && v) {
+            MsQuic->ConnectionSendResumptionTicket(
+                static_cast<HQUIC>(v.get().connection_handle),
+                QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
+            assert(server.callbacks.on_connected);
+            // Notify app
+            server.callbacks.on_connected(v.get());
+            return std::optional{ QUIC_STATUS_SUCCESS };
+        })
+        .or_else([&] {
+            MAD_LOG_ERROR_I(server, "connection could not be stored!");
+            return std::optional{ QUIC_STATUS_SUCCESS };
+        })
+        .value();
+}
+
+/**
+ * Connection shutdown handler function.
+ *
+ * @param connection The connection that is shut down
+ * @param event Shutdown event details
+ * @param server Owning server
+ *
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventShutdownCompleted(
+    HQUIC connection, [[maybe_unused]] const shutdown_complete_event & event,
+    server & server) {
+
+    return server.remove_connection(connection)
+        .and_then([&](auto && v) {
+            server.callbacks.on_disconnected(v.mapped());
+            return std::optional{ QUIC_STATUS_SUCCESS };
+        })
+        .or_else([&] {
+            MAD_LOG_DEBUG_I(server, "connection shutdown complete but no such "
+                                    "connection in map!");
+            return std::optional{ QUIC_STATUS_SUCCESS };
+        })
+        .value();
+}
+
+/**
+ * Server connection callback dispatcher function.
+ *
+ * Events from accepted connections will land here.
+ *
+ * @param chandle Subject
+ * @param context Context pointer (owning server)
+ * @param event MSQUIC event describing what happened
+ -
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context,
+                                            QUIC_CONNECTION_EVENT * event) {
+    assert(chandle);
+    assert(context);
+    assert(event);
+    auto & server = *static_cast<::server *>(context);
+    // We're only handling the connected and shutdown completed
+    // events. Rest are for logging purposes.
+
+    MAD_LOG_INFO_I(server, "Server connection callback {}", std::to_underlying(event->Type));
+
+
+    switch (event->Type) {
+        case QUIC_CONNECTION_EVENT_CONNECTED:
+            return ServerConnectionEventConnected(
+                chandle, event->CONNECTED, server);
+
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+            return ServerConnectionEventShutdownCompleted(
+                chandle, event->SHUTDOWN_COMPLETE, server);
+
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
+            if (event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status ==
+                QUIC_STATUS_CONNECTION_IDLE) {
+                MAD_LOG_INFO_I(server, "Connection shut down on idle.");
+            } else {
+                MAD_LOG_INFO_I(server,
+                               "Connection shut down by transport, status: {}",
+                               event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
+            }
+        } break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
+            MAD_LOG_INFO_I(server,
+                           "Connection shut down by peer, error code: {}",
+                           event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
+        } break;
+
+        case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
+            // We shouldn't receive peer_stream_started event
+            // as we're not allowing peer initiated streams.
+            // Shutdown them directly.
+            MsQuic->StreamClose(event->PEER_STREAM_STARTED.Stream);
+        } break;
+        case QUIC_CONNECTION_EVENT_RESUMED: {
+            MAD_LOG_INFO_I(server, "Connection resumed!");
+        } break;
+
+        default: {
+            MAD_LOG_WARN_I(server, "Unhandled connection event: {}",
+                           std::to_underlying(event->Type));
+        } break;
+    }
+
+    return QUIC_STATUS_SUCCESS;
+}
+
+/**
+ * Called when listener receives a new connection
+ *
+ * @param event New connection event details
+ * @param server The owning server
+ *
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+static MAD_ALWAYS_INLINE QUIC_STATUS ServerListenerNewConnection(
+    const new_connection_event & event, server & server) {
+    MAD_LOG_INFO_I(server, "Listener received a new connection.");
+    // A new connection is being attempted by a client. For the handshake to
+    // proceed, the server must provide a configuration for QUIC to use. The
+    // app MUST set the callback handler before returning.
+    MsQuic->SetCallbackHandler(
+        event.Connection, reinterpret_cast<void *>(ServerConnectionCallback),
+        &server);
+    return MsQuic->ConnectionSetConfiguration(
+        event.Connection, server.application.configuration().Handle);
+}
+
+/**
+ * Listener event handler
+ *
+ * @param hlistener Handle of the listener
+ * @param context The context pointer (owning server)
+ * @param event Event object containing the event details
+ *
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+static QUIC_STATUS ServerListenerCallback(MsQuicListener * hlistener,
+                                          void * context,
+                                          QUIC_LISTENER_EVENT * event) {
+    assert(hlistener);
+    assert(context);
+    assert(event);
+
+    auto & server = *static_cast<::server *>(context);
+
+    MAD_LOG_INFO_I(server, "ServerListenerCallback() - Event Type: `{}`",
+                   std::to_underlying(event->Type));
+
+    switch (event->Type) {
+        case QUIC_LISTENER_EVENT_NEW_CONNECTION: {
+            return ServerListenerNewConnection(event->NEW_CONNECTION, server);
+        }
+        case QUIC_LISTENER_EVENT_STOP_COMPLETE:
+            break;
+    }
+    return QUIC_STATUS_NOT_SUPPORTED;
+}
+
+} // namespace
 
 namespace mad::nexus {
 
-    msquic_server::msquic_server(quic_configuration cfg) : quic_base(cfg), msquic_base(cfg) {}
+msquic_server::msquic_server(const msquic_application & app) :
+    msquic_base(), application(app) {}
 
-    msquic_server::~msquic_server() = default;
+msquic_server::~msquic_server() = default;
 
-    /*
-        Generally, MsQuic creates multiple threads to parallelize work, and therefore will make parallel/overlapping upcalls to the
-       application, but not for the same connection. All upcalls to the app for a single connection and all child streams are always
-       delivered serially. This is not to say, though, it will always be on the same thread. MsQuic does support the ability to shuffle
-       connections around to better balance the load.
-    */
+std::error_code msquic_server::listen() {
 
-    static inline __attribute__((always_inline)) QUIC_STATUS ServerConnectionCallbackImpl(HQUIC chandle, msquic_server & server,
-                                                                                   const QUIC_API_TABLE & api,
-                                                                                   QUIC_CONNECTION_EVENT & event) {
+    const auto & config = application.get_config();
 
-        QUIC_ADDR_STR remote = [&]() {
-            QUIC_ADDR remote_addr;
-            std::uint32_t addr_size = sizeof(QUIC_ADDR);
-            api.GetParam(chandle, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size, &remote_addr);
-            QUIC_ADDR_STR str;
-            QuicAddrToString(&remote_addr, &str);
-            return str;
-        }();
+    listener_opaque = std::make_shared<MsQuicListener>(
+        application.registration(), MsQuicCleanUpMode::CleanUpManual,
+        ServerListenerCallback, this);
 
-        switch (event.Type) {
-            case QUIC_CONNECTION_EVENT_CONNECTED: {
-                MAD_LOG_INFO_I(server, "New client connected: {}", remote.Address);
-
-                auto wa = server.connections().exclusive_access();
-                if (auto itr = wa->find(static_cast<void *>(chandle)); itr == wa->end()) {
-
-                    std::shared_ptr<void> connection_shared_ptr{chandle, [&api](void * sp) {
-                                                                    api.ConnectionClose(static_cast<HQUIC>(sp));
-                                                                }};
-
-                    if (const auto & [citr, emplaced] = wa->emplace(std::move(connection_shared_ptr), connection_context{chandle, {}});
-                        !emplaced) {
-                        MAD_LOG_ERROR_I(server, "connection could not be stored!");
-                        return QUIC_STATUS_SUCCESS;
-                    } else {
-                        api.ConnectionSendResumptionTicket(chandle, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
-                        // Notify app
-                        assert(server.callbacks.on_connected);
-                        server.callbacks.on_connected(&citr->second);
-                    }
-                } else {
-                    MAD_LOG_INFO_I(server, "duplicate connection event for connection {}!", static_cast<void *>(chandle));
-                }
-            } break;
-            case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
-                auto wa = server.connections().exclusive_access();
-                if (auto itr = wa->find(chandle); itr == wa->end()) {
-                    MAD_LOG_DEBUG_I(server, "connection shutdown complete but no such connection in map!");
-                } else {
-                    MAD_LOG_DEBUG_I(server, "Removed connection from the connection map");
-                    // Notify app
-                    assert(server.callbacks.on_disconnected);
-                    server.callbacks.on_disconnected(&itr->second);
-                    wa->erase(itr);
-                }
-                MAD_LOG_INFO_I(server, "Connection shutdown complete {}", remote.Address);
-            } break;
-
-            case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
-                if (event.SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
-                    MAD_LOG_INFO_I(server, "Connection shut down on idle.");
-                } else {
-                    MAD_LOG_INFO_I(server, "Connection shut down by transport, status: {}", event.SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
-                }
-            } break;
-            case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
-                MAD_LOG_INFO_I(server, "Connection shut down by peer, error code: {}", event.SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
-            } break;
-
-            case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
-                // We shouldn't receive peer_stream_started event
-                // as we're not allowing peer initiated streams.
-                // Shutdown them directly.
-                auto shandle = event.PEER_STREAM_STARTED.Stream;
-                api.StreamClose(shandle);
-            } break;
-            case QUIC_CONNECTION_EVENT_RESUMED: {
-                MAD_LOG_INFO_I(server, "Connection resumed!");
-            } break;
-
-            default: {
-                MAD_LOG_WARN_I(server, "Unhandled connection event: {}", std::to_underlying(event.Type));
-            } break;
-        }
-
-        return QUIC_STATUS_SUCCESS;
+    MsQuicListener & listener = *reinterpret_cast<MsQuicListener *>(
+        listener_opaque.get());
+    if (!listener.IsValid()) {
+        return quic_error_code::listener_start_failed;
     }
 
-    static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context, QUIC_CONNECTION_EVENT * event) {
-        assert(chandle);
-        assert(context);
-        assert(event);
-        auto & server     = *static_cast<msquic_server *>(context);
-        auto & msquic_ctx = o2i(server.msquic_ctx());
-        auto & api        = *msquic_ctx.api;
-        return ServerConnectionCallbackImpl(chandle, server, api, *event);
+    MsQuicAlpn alpn{ config.alpn.c_str() };
+
+    QUIC_ADDR Address = {};
+    // Bind to 0.0.0.0
+    QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
+    QuicAddrSetPort(&Address, config.udp_port_number);
+
+    if (QUIC_FAILED(listener.Start(alpn, &Address))) {
+        return quic_error_code::listener_start_failed;
     }
 
-    static inline __attribute__((always_inline)) QUIC_STATUS ServerListenerCallbackImpl([[maybe_unused]] HQUIC Listener, msquic_server & server,
-                                                                                 msquic_context & msquic_ctx, const QUIC_API_TABLE & api,
-                                                                                 QUIC_LISTENER_EVENT & event) {
-
-        MAD_LOG_INFO_I(server, "ServerListenerCallback() - Event Type: `{}`", std::to_underlying(event.Type));
-
-        switch (event.Type) {
-            case QUIC_LISTENER_EVENT_NEW_CONNECTION: {
-                MAD_LOG_INFO_I(server, "Listener received a new connection.");
-                // A new connection is being attempted by a client. For the handshake to
-                // proceed, the server must provide a configuration for QUIC to use. The
-                // app MUST set the callback handler before returning.
-                api.SetCallbackHandler(event.NEW_CONNECTION.Connection, reinterpret_cast<void *>(ServerConnectionCallback), &server);
-                return api.ConnectionSetConfiguration(event.NEW_CONNECTION.Connection, msquic_ctx.configuration.get());
-            }
-            case QUIC_LISTENER_EVENT_STOP_COMPLETE:
-                break;
-        }
-        return QUIC_STATUS_NOT_SUPPORTED;
-    }
-
-    static QUIC_STATUS ServerListenerCallback([[maybe_unused]] HQUIC hlistener, void * context, QUIC_LISTENER_EVENT * event) {
-        assert(hlistener);
-        assert(context);
-        assert(event);
-
-        auto & server     = *static_cast<msquic_server *>(context);
-        auto & msquic_ctx = o2i(server.msquic_ctx());
-        auto & api        = *msquic_ctx.api;
-        return ServerListenerCallbackImpl(hlistener, server, msquic_ctx, api, *event);
-    }
-
-    std::error_code msquic_server::listen() {
-        if (!msquic_ctx()) {
-            return quic_error_code::uninitialized;
-        }
-
-        return o2i(msquic_ctx()).listen(config.udp_port_number, config.alpn, ServerListenerCallback, this);
-    }
+    return quic_error_code::success;
+}
 
 } // namespace mad::nexus

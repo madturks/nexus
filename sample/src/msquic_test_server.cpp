@@ -1,95 +1,111 @@
-#include <mad/nexus/quic_base.hpp>
+
+#include <mad/log_printer.hpp>
+#include <mad/nexus/quic.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+
 #include <flatbuffers/default_allocator.h>
 #include <flatbuffers/detached_buffer.h>
 #include <flatbuffers/flatbuffer_builder.h>
-#include <mad/log_printer.hpp>
-#include <mad/nexus/quic_server.hpp>
-#include <mad/nexus/msquic/msquic_server.hpp>
-#include <mad/nexus/quic_error_code.hpp>
+#include <flatbuffers/flatbuffers.h>
+#include <fmt/format.h>
 
+#include <atomic>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
-#include <chrono>
-#include <span>
-#include <unordered_map>
-
-#include <fmt/format.h>
-#include <flatbuffers/flatbuffers.h>
 #include <fbs-schemas/main_generated.h>
+#include <span>
 #include <thread>
-#include <atomic>
+#include <unordered_map>
 
 static std::atomic_bool stop;
 static std::vector<std::thread> threads;
 
-static std::unordered_map<std::string, mad::nexus::stream_context *> streams;
+static std::unordered_map<std::string,
+                          std::reference_wrapper<mad::nexus::stream_context>>
+    streams;
 static std::string message = "hello from the other side";
 
-static mad::log_printer logger{"console"};
+static mad::log_printer logger{ "console" };
 
 static void test_loop(mad::nexus::quic_server & quic_server) {
 
     for (auto & [str, stream] : streams) {
-        (void) quic_server.send(stream, quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
-            mb.add_hp(150);
-            mb.add_mana(80);
-        }));
+        (void) quic_server.send(
+            stream.get(),
+            quic_server.build_message<mad::schemas::MonsterBuilder>(
+                [](auto & mb) {
+                    mb.add_hp(150);
+                    mb.add_mana(80);
+                }));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(1s);
 }
 
-static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::span<const std::uint8_t> buf) {
-    MAD_LOG_INFO_I(logger, "app_stream_data_received: received {} byte(s)", buf.size_bytes());
+static std::size_t app_stream_data_received([[maybe_unused]] void * uctx,
+                                            std::span<const std::uint8_t> buf) {
+    MAD_LOG_INFO_I(logger, "app_stream_data_received: received {} byte(s)",
+                   buf.size_bytes());
     return 0;
 }
 
-static void server_on_connected(void * uctx, mad::nexus::connection_context * cctx) {
-    assert(cctx);
+static void server_on_connected(void * uctx,
+                                mad::nexus::connection_context & cctx) {
     assert(uctx);
 
     MAD_LOG_INFO_I(logger, "app received new connection!");
 
-    auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
+    auto & quic_server = *static_cast<mad::nexus::quic_server *>(uctx);
 
     for (int i = 0; i < 10; i++) {
 
-        if (auto r = quic_server.open_stream(cctx, mad::nexus::stream_data_callback_t{&app_stream_data_received, nullptr}); !r) {
-            MAD_LOG_INFO_I(logger, "server_on_connected -- stream open failed: {}!", r.error().message());
+        if (auto r = quic_server.open_stream(
+                cctx,
+                mad::nexus::stream_data_callback_t{ &app_stream_data_received,
+                                                    nullptr });
+            !r) {
+            MAD_LOG_INFO_I(logger,
+                           "server_on_connected -- stream open failed: {}!",
+                           r.error().message());
             continue;
         } else {
             streams.emplace("stream_" + std::to_string(i), r.value());
 
-            auto msg = quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
-                mb.add_hp(12);
-                mb.add_mana(5);
-            });
+            auto msg = quic_server.build_message<mad::schemas::MonsterBuilder>(
+                [](auto & mb) {
+                    mb.add_hp(12);
+                    mb.add_mana(5);
+                });
 
-            if (!quic_server.send(r.value(), std::move(msg))) {
+            if (!quic_server.send(r.value().get(), std::move(msg))) {
                 MAD_LOG_ERROR_I(logger, "could not send msg!");
             }
         }
     }
 
     for (int i = 0; i < 32; i++) {
-        std::thread thr{[&]() {
+        std::thread thr{ [&]() {
             while (!stop.load())
                 test_loop(quic_server);
-        }};
+        } };
         threads.push_back(std::move(thr));
     }
     MAD_LOG_INFO_I(logger, "server_on_connected return");
 }
 
-static void server_on_disconnected(void * uctx, mad::nexus::connection_context * cctx) {
-    assert(cctx);
+static void
+server_on_disconnected(void * uctx,
+                       [[maybe_unused]] mad::nexus::connection_context & cctx) {
     assert(uctx);
 
     MAD_LOG_INFO_I(logger, "app received disconnection !");
 
-    [[maybe_unused]] auto & quic_server = *static_cast<mad::nexus::msquic_server *>(uctx);
+    [[maybe_unused]] auto & quic_server =
+        *static_cast<mad::nexus::quic_server *>(uctx);
     stop.store(true);
     for (auto & thr : threads) {
         thr.join();
@@ -99,32 +115,44 @@ static void server_on_disconnected(void * uctx, mad::nexus::connection_context *
 }
 
 int main(void) {
+    logger.set_log_level(mad::log_level::debug);
     MAD_LOG_INFO_I(logger, "{}", __cplusplus);
     stop.store(false);
 
     mad::nexus::quic_configuration cfg;
-    cfg.alpn                          = "test";
-    cfg.credentials.certificate_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
-    cfg.credentials.private_key_path  = "/workspaces/nexus/vendor/msquic/test-cert/server.key";
-    cfg.idle_timeout                  = std::chrono::milliseconds{10000};
-    cfg.udp_port_number               = 6666;
+    cfg.alpn = "test";
+    cfg.credentials.certificate_path =
+        "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
+    cfg.credentials.private_key_path =
+        "/workspaces/nexus/vendor/msquic/test-cert/server.key";
+    cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
+    cfg.udp_port_number = 6666;
 
-    auto server                       = mad::nexus::msquic_server::make(cfg);
+    auto app = mad::nexus::make_quic_application(
+        mad::nexus::e_quic_impl_type::msquic, cfg);
+    auto server = app->make_server();
 
-    server->callbacks.on_connected    = mad::nexus::quic_callback_function{&server_on_connected, server.get()};
-    server->callbacks.on_disconnected = mad::nexus::quic_callback_function{&server_on_disconnected, server.get()};
+    server->callbacks.on_connected = mad::nexus::quic_callback_function{
+        &server_on_connected, server.get()
+    };
+    server->callbacks.on_disconnected = mad::nexus::quic_callback_function{
+        &server_on_disconnected, server.get()
+    };
 
     if (auto r = server->init(); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}", r.value(), r.message());
+        MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
+                        r.value(), r.message());
         return -1;
     }
 
     if (auto r = server->listen(); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(), r.message());
+        MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(),
+                        r.message());
         return -2;
     }
 
-    MAD_LOG_INFO_I(logger, "QUIC server is listening for incoming connections.");
+    MAD_LOG_INFO_I(
+        logger, "QUIC server is listening for incoming connections.");
     MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
     getchar();
 }

@@ -7,9 +7,24 @@ IndentWidth: 4      # Each `indent` is indented to 4 spaces
 TabWidth: 4         # Each `tab` is indented to 4 spaces
 UseTab: Never       # Do not use tab for indentation
 UseCRLF: false      # Do not use windows style (CRLF) line endings
-ColumnLimit: 140    # Each line is 140 characters
-SortIncludes: false # Enable include sorting
+ColumnLimit: 80    # Each line is 140 characters
 IndentCaseLabels: true
+
+IncludeBlocks: Regroup
+SortIncludes: true
+IncludeCategories:
+  - Regex: '^<mad/.*>$'
+    Priority: 1
+    SortPriority: 1  # Project-specific headers (e.g., <mad/...>)
+  - Regex: '^<fmt/.*>$|^<flatbuffers/.*>$|^<msquic.hpp>$'
+    Priority: 2
+    SortPriority: 2  # Third-party library headers (e.g., fmt, flatbuffers, msquic)
+  - Regex: '^<netinet/.*>$'
+    Priority: 3
+    SortPriority: 3  # System headers (e.g., <netinet/in.h>)
+  - Regex: '^<.*>$'
+    Priority: 4
+    SortPriority: 4  # Standard C++ library headers (e.g., <memory>, <system_error>)
 
 # ###################
 # Macro related stuff
@@ -34,7 +49,7 @@ AlignTrailingComments: true             # Align comments
 # int aaaa = 12;
 # int b    = 23;
 # int ccc  = 23;
-AlignConsecutiveAssignments: AcrossEmptyLinesAndComments  
+AlignConsecutiveAssignments: false 
 
 # false:
 # // veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of information
@@ -47,10 +62,19 @@ AlignConsecutiveAssignments: AcrossEmptyLinesAndComments
 #  * information */
 ReflowComments: true
 
+AlignOperands: true
+
+PenaltyBreakBeforeFirstCallParameter: 0
+PenaltyBreakAssignment: 50
+
 # someLongFunction(argument1,
 #                  argument2);
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
 
+
+AttributeMacros: [MAD_ALWAYS_INLINE]
 
 
 # class Foo {
@@ -174,6 +198,7 @@ BreakBeforeConceptDeclarations: true
 # }
 IndentRequires: false
 
+ContinuationIndentWidth: 4
 # true:
 # void f(int aaaaaaaaaaaaaaaaaaaa, int aaaaaaaaaaaaaaaaaaaa,
 #        int aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) {}
@@ -201,9 +226,11 @@ BinPackArguments: true
 # }}
 CompactNamespaces: true
 
-NamespaceIndentation: All
+NamespaceIndentation: Inner
 
-Cpp11BracedListStyle: true              # Function call like braced list style  
+
+
+Cpp11BracedListStyle: false              # Function call like braced list style  
 FixNamespaceComments: true              # Correct invalid namespace ending comments and add if not existing
 IndentGotoLabels: false                 # Flush goto labels to leftmost
 

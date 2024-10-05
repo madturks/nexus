@@ -21,7 +21,8 @@ namespace mad::nexus {
         listener_start_failed,
         stream_open_failed,
         stream_start_failed,
-        stream_insert_to_map_failed,
+        stream_emplace_failed,
+        stream_already_exists,
         connection_initialization_failed,
         connection_start_failed
     };
