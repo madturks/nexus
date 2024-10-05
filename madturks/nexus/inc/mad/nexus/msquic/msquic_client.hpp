@@ -12,7 +12,7 @@ class msquic_client final : public quic_client,
 public:
     virtual ~msquic_client() override;
 
-    [[nodiscard]] virtual std::error_code connect(std::string_view target,
+    virtual std::error_code connect(std::string_view target,
                                                   std::uint16_t port) override;
 
     std::unique_ptr<connection_context> connection_ctx;

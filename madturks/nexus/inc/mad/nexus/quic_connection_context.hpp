@@ -11,9 +11,11 @@
 namespace mad::nexus {
 struct connection_context {
     using connection_handle_t = void *;
-    connection_handle_t connection_handle;
 
     using stream_handle_t = std::shared_ptr<void>;
+    using stream_map_t =
+        std::unordered_map<stream_handle_t, stream_context, shared_ptr_raw_hash,
+                           shared_ptr_raw_equal>;
     using add_stream_result_t =
         std::expected<std::reference_wrapper<stream_context>, std::error_code>;
 
@@ -25,8 +27,9 @@ struct connection_context {
     * @return reference to the connection_context if successful,
     * std::nullopt otherwise.
     */
-    add_stream_result_t add_new_stream(std::shared_ptr<void> ptr,
-                                       stream_data_callback_t data_callback) {
+    auto add_new_stream(std::shared_ptr<void> ptr,
+                        stream_data_callback_t data_callback)
+        -> add_stream_result_t {
 
         auto stream_handle = ptr.get();
         auto present = streams.find(ptr);
@@ -47,13 +50,24 @@ struct connection_context {
         return emplaced_itr->second;
     }
 
-    auto remove_stream() {}
+    auto remove_stream(void * stream_handle)
+        -> std::optional<stream_map_t::node_type> {
+        auto present = streams.find(stream_handle);
 
+        if (streams.end() == present) {
+            return std::nullopt;
+        }
+
+        // Remove the key-value pair from the map
+        // and return it to caller. The caller might
+        // have some unfinished business with it.
+        return streams.extract(present);
+    }
+
+    connection_handle_t connection_handle;
     /**
      * Enable lookup by raw pointer.
      */
-    std::unordered_map<stream_handle_t, stream_context, shared_ptr_raw_hash,
-                       shared_ptr_raw_equal>
-        streams;
+    stream_map_t streams;
 };
 } // namespace mad::nexus

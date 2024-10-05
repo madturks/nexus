@@ -1,3 +1,4 @@
+#include <mad/macros.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 
 namespace mad::nexus {
@@ -8,13 +9,7 @@ const char * quic_error_code_category::name() const noexcept {
 std::string quic_error_code_category::message(int condition) const {
     auto e = static_cast<quic_error_code>(condition);
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic error "-Wswitch"
-#elif defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(error : 4062) // MSVC specific pragma
-#endif
+    MAD_EXHAUSTIVE_SWITCH_BEGIN
     switch (e) {
         using enum quic_error_code;
         case success:
@@ -62,12 +57,7 @@ std::string quic_error_code_category::message(int condition) const {
             return "Connection initialization failed.";
     }
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-
+    MAD_EXHAUSTIVE_SWITCH_END
     std::unreachable();
 }
 } // namespace mad::nexus

@@ -15,168 +15,207 @@
 #include <thread>
 #include <utility>
 
-namespace {
-static mad::log_printer & stream_logger() {
-    static auto sl = [] {
-        static mad::log_printer stream_logger{ "quic-stream" };
-        stream_logger.set_log_level(mad::log_level::debug);
-        return stream_logger;
-    }();
-    return sl;
-}
-
-} // namespace
-
-using send_complete_event = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
-using receive_event = decltype(QUIC_STREAM_EVENT::RECEIVE);
-using shutdown_complete_event = decltype(QUIC_STREAM_EVENT::SHUTDOWN_COMPLETE);
-
 namespace mad::nexus {
 
-/**
- * @brief Quic stream event type to string conversion
- *
- * @param eid The stream event type (QUIC_STREAM_EVENT_TYPE)
- *
- * @return constexpr std::string_view The string representation
- */
-constexpr std::string_view quic_stream_event_to_str(int etype) {
-    switch (etype) {
-        case QUIC_STREAM_EVENT_START_COMPLETE:
-            return "QUIC_STREAM_EVENT_START_COMPLETE";
-        case QUIC_STREAM_EVENT_RECEIVE:
-            return "QUIC_STREAM_EVENT_RECEIVE";
-        case QUIC_STREAM_EVENT_SEND_COMPLETE:
-            return "QUIC_STREAM_EVENT_SEND_COMPLETE";
-        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
-            return "QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN";
-        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
-            return "QUIC_STREAM_EVENT_PEER_SEND_ABORTED";
-        case QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED:
-            return "QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED";
-        case QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE:
-            return "QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE";
-        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
-            return "QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE";
-        case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
-            return "QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE";
-        case QUIC_STREAM_EVENT_PEER_ACCEPTED:
-            return "QUIC_STREAM_EVENT_PEER_ACCEPTED";
-        case QUIC_STREAM_EVENT_CANCEL_ON_LOSS:
-            return "QUIC_STREAM_EVENT_CANCEL_ON_LOSS";
-    }
-    return "undefined";
-}
+namespace {
 
-/**
- * @brief Send completion callback.
- *
- * The client_context will contain the buffer data in flight,
- * and the code performs the required cleanups, if any.
- *
- * @param sctx The owning stream context
- * @param event Send complete event details
- *
- * @return QUIC_STATUS Return code indicating callback result
- */
-MAD_ALWAYS_INLINE QUIC_STATUS
-StreamCallbackSendComplete(stream_context & sctx, send_complete_event & event) {
-    //
-    // A previous StreamSend call has completed, and the context is
-    // being returned back to the app.
-    //
-    MAD_LOG_DEBUG_I(
-        stream_logger(), "data sent to stream %p", event.ClientContext);
-
-    // The size does not matter for the default allocator.
-    // FIXME: Get this dynamically from the user
-    flatbuffers::DefaultAllocator::dealloc(event.ClientContext, 0);
-    return QUIC_STATUS_SUCCESS;
-}
-
-/**
- * @brief The callback function for incoming stream data.
- *
- * The callback transfers the received data to stream-specific
- * circular receive buffer for parsing.
- *
- * @param sctx The owning stream
- * @param event The receive event details
- *
- * @return QUIC_STATUS Return code indicating callback result
- */
-MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
-                                                    receive_event & event) {
-    // Pull the received data into user-space receive buffer
-    for (std::uint32_t i = 0; i < event.BufferCount; i++) {
-        sctx.rbuf().put(event.Buffers [i].Buffer, event.Buffers [i].Length);
+    static mad::log_printer & stream_logger() {
+        static auto sl = [] {
+            static mad::log_printer stream_logger{ "quic-stream" };
+            stream_logger.set_log_level(mad::log_level::debug);
+            return stream_logger;
+        }();
+        return sl;
     }
 
-    // Deliver all complete messages to the app layer
-    for (auto available_span = sctx.rbuf().available_span();
-         available_span.size_bytes() >= sizeof(std::uint32_t);
-         available_span = sctx.rbuf().available_span()) {
-        // Read the size of the message
-        auto size = *reinterpret_cast<const std::uint32_t *>(
-            available_span.data());
-        // Size is little-endian.
-        if constexpr (std::endian::native == std::endian::big) {
-            size = std::byteswap(size);
-        }
+    void prettyPrintHex(const void * data, size_t length) {
+        const unsigned char * ptr = static_cast<const unsigned char *>(data);
+        const size_t bytes_per_line = 16;
 
-        // Continue here!
-        MAD_LOG_DEBUG_I(stream_logger(), "Message size {}", size);
-        if ((available_span.size_bytes() - sizeof(std::uint32_t)) >= size) {
-            auto message = available_span.subspan(
-                sizeof(std::uint32_t), size - sizeof(std::uint32_t));
-            // Only deliver complete messages to the application layer.
-            [[maybe_unused]] auto consumed_bytes = sctx.on_data_received(
-                message);
-            sctx.rbuf().mark_as_read(sizeof(std::uint32_t) +
-                                     message.size_bytes());
-            continue;
+        for (size_t i = 0; i < length; i += bytes_per_line) {
+            std::ostringstream oss;
+
+            // Print the offset
+            oss << std::setw(8) << std::setfill('0') << std::hex << i << ": ";
+
+            // Print hexadecimal bytes
+            for (size_t j = 0; j < bytes_per_line; ++j) {
+                if (i + j < length) {
+                    oss << std::setw(2) << std::setfill('0')
+                        << static_cast<int>(ptr [i + j]) << ' ';
+                } else {
+                    oss << "   ";
+                }
+            }
+
+            // Print ASCII characters
+            oss << " ";
+            for (size_t j = 0; j < bytes_per_line; ++j) {
+                if (i + j < length) {
+                    unsigned char c = ptr [i + j];
+                    oss << (std::isprint(c) ? c : '.');
+                } else {
+                    oss << ' ';
+                }
+            }
+
+            // Log the line using spdlog
+            MAD_LOG_INFO_I(stream_logger(), oss.str());
         }
+    }
+
+    using send_complete_event = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
+    using receive_event = decltype(QUIC_STREAM_EVENT::RECEIVE);
+    using shutdown_complete_event =
+        decltype(QUIC_STREAM_EVENT::SHUTDOWN_COMPLETE);
+
+    /**
+     * @brief Quic stream event type to string conversion
+     *
+     * @param eid The stream event type (QUIC_STREAM_EVENT_TYPE)
+     *
+     * @return constexpr std::string_view The string representation
+     */
+    constexpr std::string_view quic_stream_event_to_str(int etype) {
+        MAD_EXHAUSTIVE_SWITCH_BEGIN
+        switch (static_cast<QUIC_STREAM_EVENT_TYPE>(etype)) {
+            using enum QUIC_STREAM_EVENT_TYPE;
+            case QUIC_STREAM_EVENT_START_COMPLETE:
+                return "QUIC_STREAM_EVENT_START_COMPLETE";
+            case QUIC_STREAM_EVENT_RECEIVE:
+                return "QUIC_STREAM_EVENT_RECEIVE";
+            case QUIC_STREAM_EVENT_SEND_COMPLETE:
+                return "QUIC_STREAM_EVENT_SEND_COMPLETE";
+            case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+                return "QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN";
+            case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+                return "QUIC_STREAM_EVENT_PEER_SEND_ABORTED";
+            case QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED:
+                return "QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED";
+            case QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE:
+                return "QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE";
+            case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+                return "QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE";
+            case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+                return "QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE";
+            case QUIC_STREAM_EVENT_PEER_ACCEPTED:
+                return "QUIC_STREAM_EVENT_PEER_ACCEPTED";
+            case QUIC_STREAM_EVENT_CANCEL_ON_LOSS:
+                return "QUIC_STREAM_EVENT_CANCEL_ON_LOSS";
+        }
+        MAD_EXHAUSTIVE_SWITCH_END
+        std::unreachable();
+    }
+
+    /**
+     * @brief Send completion callback.
+     *
+     * The client_context will contain the buffer data in flight,
+     * and the code performs the required cleanups, if any.
+     *
+     * @param sctx The owning stream context
+     * @param event Send complete event details
+     *
+     * @return QUIC_STATUS Return code indicating callback result
+     */
+    MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackSendComplete(
+        stream_context & sctx, send_complete_event & event) {
+        //
+        // A previous StreamSend call has completed, and the context is
+        // being returned back to the app.
+        //
         MAD_LOG_DEBUG_I(
-            stream_logger(), "Partial data received {}, need {} more byte(s)",
-            available_span.size_bytes(), size - available_span.size_bytes());
-        break;
+            stream_logger(), "data sent to stream %p", event.ClientContext);
+
+        // The size does not matter for the default allocator.
+        // FIXME: Get this dynamically from the user
+        flatbuffers::DefaultAllocator::dealloc(event.ClientContext, 0);
+        return QUIC_STATUS_SUCCESS;
     }
 
-    MAD_LOG_DEBUG_I(stream_logger(), "total {}", sctx.rbuf().consumed_space());
+    /**
+     * @brief The callback function for incoming stream data.
+     *
+     * The callback transfers the received data to stream-specific
+     * circular receive buffer for parsing.
+     *
+     * @param sctx The owning stream
+     * @param event The receive event details
+     *
+     * @return QUIC_STATUS Return code indicating callback result
+     */
+    MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
+                                                        receive_event & event) {
+        // Pull the received data into user-space receive buffer
+        for (std::uint32_t i = 0; i < event.BufferCount; i++) {
+            sctx.rbuf().put(event.Buffers [i].Buffer, event.Buffers [i].Length);
+        }
 
-    MAD_LOG_DEBUG_I(stream_logger(),
-                    "Received data from the remote count:{} total_size:{}",
-                    event.BufferCount, event.TotalBufferLength);
-    return QUIC_STATUS_SUCCESS;
-}
+        // Deliver all complete messages to the app layer
+        for (auto available_span = sctx.rbuf().available_span();
+             available_span.size_bytes() >= sizeof(std::uint32_t);
+             available_span = sctx.rbuf().available_span()) {
+            // Read the size of the message
+            auto size = *reinterpret_cast<const std::uint32_t *>(
+                available_span.data());
+            // Size is little-endian.
+            if constexpr (std::endian::native == std::endian::big) {
+                size = std::byteswap(size);
+            }
 
-/**
- * @brief Callback function for stream shutdown.
- *
- * It is called when a stream is completely closed and being destructed.
- *
- * @param sctx The stream context of the shutdown stream
- * @param event Shutdown complete event details
- *
- * @return QUIC_STATUS Return code indicating callback result
- */
-MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
-    stream_context & sctx, shutdown_complete_event & event)
+            // Continue here!
+            MAD_LOG_DEBUG_I(stream_logger(), "Message size {}", size);
+            if ((available_span.size_bytes() - sizeof(std::uint32_t)) >= size) {
+                auto message = available_span.subspan(
+                    sizeof(std::uint32_t), size - sizeof(std::uint32_t));
+                // Only deliver complete messages to the application layer.
+                [[maybe_unused]] auto consumed_bytes = sctx.on_data_received(
+                    message);
+                sctx.rbuf().mark_as_read(sizeof(std::uint32_t) +
+                                         message.size_bytes());
+                continue;
+            }
+            MAD_LOG_DEBUG_I(stream_logger(),
+                            "Partial data received {}, need {} more byte(s)",
+                            available_span.size_bytes(),
+                            size - available_span.size_bytes());
+            break;
+        }
 
-{
-    std::stringstream aq;
-    aq << std::this_thread::get_id();
-    MAD_LOG_DEBUG_I(
-        stream_logger(), "stream shutdown from thread {}", aq.str());
+        MAD_LOG_DEBUG_I(
+            stream_logger(), "total {}", sctx.rbuf().consumed_space());
 
-    if (auto itr = sctx.connection().streams.find(
-            static_cast<void *>(sctx.stream()));
-        itr == sctx.connection().streams.end()) {
-        MAD_LOG_DEBUG_I(stream_logger(), "stream erased from connection map");
-        sctx.connection().streams.erase(itr);
+        MAD_LOG_DEBUG_I(stream_logger(),
+                        "Received data from the remote count:{} total_size:{}",
+                        event.BufferCount, event.TotalBufferLength);
+        return QUIC_STATUS_SUCCESS;
     }
-    return QUIC_STATUS_SUCCESS;
-}
+
+    /**
+     * @brief Callback function for stream shutdown.
+     *
+     * It is called when a stream is completely closed and being destructed.
+     *
+     * @param sctx The stream context of the shutdown stream
+     * @param event Shutdown complete event details
+     *
+     * @return QUIC_STATUS Return code indicating callback result
+     */
+    MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
+        stream_context & sctx, [[maybe_unused]] shutdown_complete_event & event)
+
+    {
+        return sctx.connection()
+            .remove_stream(sctx.stream())
+            .and_then([&](auto &&) {
+                MAD_LOG_DEBUG_I(
+                    stream_logger(), "stream erased from connection map");
+                return std::optional{ QUIC_STATUS_SUCCESS };
+            })
+            .value_or(QUIC_STATUS_SUCCESS);
+    }
+
+} // namespace
 
 /**
  * @brief The stream event callback dispatcher.
@@ -278,42 +317,6 @@ auto msquic_base::close_stream([[maybe_unused]] stream_context & sctx)
     return quic_error_code::success;
 }
 
-void prettyPrintHex(const void * data, size_t length) {
-    const unsigned char * ptr = static_cast<const unsigned char *>(data);
-    const size_t bytes_per_line = 16;
-
-    for (size_t i = 0; i < length; i += bytes_per_line) {
-        std::ostringstream oss;
-
-        // Print the offset
-        oss << std::setw(8) << std::setfill('0') << std::hex << i << ": ";
-
-        // Print hexadecimal bytes
-        for (size_t j = 0; j < bytes_per_line; ++j) {
-            if (i + j < length) {
-                oss << std::setw(2) << std::setfill('0')
-                    << static_cast<int>(ptr [i + j]) << ' ';
-            } else {
-                oss << "   ";
-            }
-        }
-
-        // Print ASCII characters
-        oss << " ";
-        for (size_t j = 0; j < bytes_per_line; ++j) {
-            if (i + j < length) {
-                unsigned char c = ptr [i + j];
-                oss << (std::isprint(c) ? c : '.');
-            } else {
-                oss << ' ';
-            }
-        }
-
-        // Log the line using spdlog
-        MAD_LOG_INFO_I(stream_logger(), oss.str());
-    }
-}
-
 auto msquic_base::send(stream_context & sctx, send_buffer buf) -> std::size_t {
 
     // This function is used to queue data on a stream to be sent.
@@ -330,7 +333,7 @@ auto msquic_base::send(stream_context & sctx, send_buffer buf) -> std::size_t {
     MAD_LOG_INFO("sending {} bytes of data, offset: {}, size: {}", buf.used,
                  buf.offset, buf.buf_size);
 
-    prettyPrintHex(buf.buf + buf.offset, buf.used);
+    //prettyPrintHex(buf.buf + buf.offset, buf.used);
 
     QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(buf.buf + buf.offset);
     qbuf->Buffer = reinterpret_cast<std::uint8_t *>(buf.buf + buf.offset +

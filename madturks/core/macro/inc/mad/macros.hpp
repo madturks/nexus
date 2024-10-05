@@ -1,3 +1,19 @@
 #pragma once
 
 #define MAD_ALWAYS_INLINE inline __attribute__((always_inline))
+
+#if defined(__GNUC__) || defined(__clang__)
+#define MAD_EXHAUSTIVE_SWITCH_BEGIN                                            \
+    _Pragma("GCC diagnostic push")                                             \
+        _Pragma("GCC diagnostic error \"-Wswitch\"")
+
+#define MAD_EXHAUSTIVE_SWITCH_END _Pragma("GCC diagnostic pop")
+#elif defined(_MSC_VER)
+#define MAD_EXHAUSTIVE_SWITCH_BEGIN                                            \
+    __pragma(warning(push)) __pragma(warning(error : 4062))
+
+#define MAD_EXHAUSTIVE_SWITCH_END __pragma(warning(pop))
+#else
+#define MAD_EXHAUSTIVE_SWITCH_BEGIN
+#define MAD_EXHAUSTIVE_SWITCH_END
+#endif

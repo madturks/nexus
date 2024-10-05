@@ -49,7 +49,6 @@ int main(void) {
     client->callbacks.on_stream_data_received =
         mad::nexus::quic_callback_function{ &client_stream_data_received,
                                             client.get() };
-    //
     // server->callbacks.on_connected = ;
 
     if (auto r = client->init(); mad::nexus::failed(r)) {

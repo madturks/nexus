@@ -22,6 +22,7 @@ class msquic_server final : virtual public quic_server,
                            shared_ptr_raw_hash, shared_ptr_raw_equal>;
 
     std::shared_ptr<void> listener_opaque;
+    // Might be moved to quic_server?
     mad::concurrent<connection_map_t> connection_map;
 
 public:
@@ -29,7 +30,7 @@ public:
 
     virtual ~msquic_server() override;
 
-    [[nodiscard]] virtual std::error_code listen() override;
+    virtual std::error_code listen() override;
 
     /**
      * Add a new connection to the connection map.
@@ -39,8 +40,8 @@ public:
      * @return reference to the connection_context if successful,
      * std::nullopt otherwise.
      */
-    std::optional<std::reference_wrapper<connection_context>>
-    add_new_connection(std::shared_ptr<void> ptr) {
+    auto add_new_connection(std::shared_ptr<void> ptr)
+        -> std::optional<std::reference_wrapper<connection_context>> {
 
         auto connection_handle = ptr.get();
         auto writer = connection_map.exclusive_access();
@@ -70,8 +71,8 @@ public:
      * @return extracted node (key, value) if connection exists,
      * std::nullopt otherwise.
      */
-    std::optional<connection_map_t::node_type>
-    remove_connection(void * connection_handle) {
+    auto remove_connection(void * connection_handle)
+        -> std::optional<connection_map_t::node_type> {
         auto writer = connection_map.exclusive_access();
         auto present = writer->find(connection_handle);
 
