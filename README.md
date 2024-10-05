@@ -27,6 +27,32 @@ If you're getting `ADDR_NO_RANDOMIZE` errors running TSAN-enabled executables, t
 echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
 ```
 
+### Start MSQUIC LTTng trace
+
+Install the lttng runtime dependencies
+```
+sudo apt-get install liblttng-ust-dev liblttng-ctl-dev
+```
+
+Export the following environment variables
+```
+export LTTNG_UST_DEBUG=1
+export LTTNG_UST_REGISTER_TIMEOUT=-1
+```
+
+Then:
+
+```
+mkdir msquic_lttng
+lttng create msquic -o=./msquic_lttng
+lttng enable-event --userspace "CLOG_*"
+lttng add-context --userspace --type=vpid --type=vtid
+lttng start
+# lttng stop msquic
+```
+
+
+
 
 ### 
 

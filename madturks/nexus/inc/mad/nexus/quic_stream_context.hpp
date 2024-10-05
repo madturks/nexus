@@ -16,7 +16,7 @@ namespace mad::nexus {
          * @param send_buffer_size  Size of the send circular buffer.
          */
         stream_context(void * hstream, connection_context & cctx, stream_data_callback_t data_callback,
-                       std::size_t receive_buffer_size = 16384) :
+                       std::size_t receive_buffer_size = 32768) :
             stream_handle_(hstream), connection_context_(cctx), on_data_received(data_callback),
             receive_buffer(receive_buffer_size, circular_buffer_t::auto_align_to_page{}) {}
 

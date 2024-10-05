@@ -20,4 +20,6 @@
         "tgt/**": true,
         "vendor/**": true
     },
+    "C_Cpp.default.compileCommands": "/workspaces/nexus/tgt/compile_commands.json",
+    "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
 }

@@ -24,6 +24,9 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     // bidirectional stream. By default connections are not configured to allow
     // any streams from the peer.
     settings.SetPeerBidiStreamCount(1);
+    settings.SetStreamRecvWindowDefault(cfg.stream_receive_window);
+
+    //settings.SetStreamRecvWindowDefault(uint32_t Value)
 
     return settings;
 }

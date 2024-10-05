@@ -1,0 +1,8 @@
+namespace mad.schemas;
+
+
+table Chat  
+{  
+  timestamp:ulong;  
+  message:string;  
+}  

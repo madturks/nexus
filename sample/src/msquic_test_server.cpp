@@ -16,10 +16,14 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
+#include <fbs-schemas/chat_generated.h>
 #include <fbs-schemas/main_generated.h>
+#include <fbs-schemas/monster_generated.h>
 #include <span>
 #include <thread>
 #include <unordered_map>
+
+#include "lorem_ipsum.hpp"
 
 static std::atomic_bool stop;
 static std::vector<std::thread> threads;
@@ -36,14 +40,37 @@ static void test_loop(mad::nexus::quic_server & quic_server) {
     for (auto & [str, stream] : streams) {
         (void) quic_server.send(
             stream.get(),
-            quic_server.build_message<mad::schemas::MonsterBuilder>(
-                [](auto & mb) {
-                    mb.add_hp(150);
-                    mb.add_mana(80);
+            quic_server.build_message(
+                [](::flatbuffers::FlatBufferBuilder & fbb) {
+                    if (std::rand() % 2 == 0) {
+                        mad::schemas::Vec3 coords{ 10, 20, 30 };
+                        auto name = fbb.CreateString("Deruvish");
+                        mad::schemas::MonsterBuilder mb{ fbb };
+                        mb.add_hp(120);
+                        mb.add_mana(80);
+                        mb.add_name(name);
+                        mb.add_pos(&coords);
+                        auto f = mb.Finish();
+
+                        mad::schemas::EnvelopeBuilder env{ fbb };
+                        env.add_message(f.Union());
+                        env.add_message_type(mad::schemas::Message::Monster);
+                        return env.Finish();
+                    } else {
+                        auto msg = fbb.CreateString(lorem_ipsum);
+                        mad::schemas::ChatBuilder cb{ fbb };
+                        cb.add_message(msg);
+                        cb.add_timestamp(123456789);
+                        auto f = cb.Finish();
+                        mad::schemas::EnvelopeBuilder env{ fbb };
+                        env.add_message(f.Union());
+                        env.add_message_type(mad::schemas::Message::Chat);
+                        return env.Finish();
+                    }
                 }));
     }
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(1s);
+    std::this_thread::sleep_for(10ms);
 }
 
 static std::size_t app_stream_data_received([[maybe_unused]] void * uctx,
@@ -75,11 +102,21 @@ static void server_on_connected(void * uctx,
         } else {
             streams.emplace("stream_" + std::to_string(i), r.value());
 
-            auto msg = quic_server.build_message<mad::schemas::MonsterBuilder>(
-                [](auto & mb) {
-                    mb.add_hp(12);
-                    mb.add_mana(5);
-                });
+            auto msg = quic_server.build_message([](auto & fbb) {
+                mad::schemas::Vec3 coords{ 10, 20, 30 };
+                auto name = fbb.CreateString("Deruvish");
+                mad::schemas::MonsterBuilder mb{ fbb };
+                mb.add_hp(120);
+                mb.add_mana(80);
+                mb.add_name(name);
+                mb.add_pos(&coords);
+                auto f = mb.Finish();
+
+                mad::schemas::EnvelopeBuilder env{ fbb };
+                env.add_message(f.Union());
+                env.add_message_type(mad::schemas::Message::Monster);
+                return env.Finish();
+            });
 
             if (!quic_server.send(r.value().get(), std::move(msg))) {
                 MAD_LOG_ERROR_I(logger, "could not send msg!");
