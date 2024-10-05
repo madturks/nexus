@@ -37,7 +37,7 @@ namespace mad::nexus {
                 return "Stream open failed.";
             case stream_start_failed:
                 return "Stream start failed.";
-            case stream_insert_to_map_failed:
+            case stream_emplace_failed:
                 return "Stream insert to map failed.";
             case connection_start_failed:
                 return "Connection start failed.";

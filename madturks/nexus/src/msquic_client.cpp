@@ -20,8 +20,8 @@ StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event);
  */
 static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventPeerStreamStarted(
     const decltype(QUIC_CONNECTION_EVENT::PEER_STREAM_STARTED) & event,
-    mad::nexus::msquic_client & client,
-    mad::nexus::connection_context & connection_context) {
+    mad::nexus::msquic_client & client) {
+    assert(client.connection_ctx);
     auto new_stream = event.Stream;
 
     std::shared_ptr<void> stream_shared_ptr{ new_stream, [](void * sp) {
@@ -29,9 +29,9 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventPeerStreamStarted(
                                                     static_cast<HQUIC>(sp));
                                             } };
 
-    const auto & [itr, inserted] = connection_context.streams.emplace(
+    const auto & [itr, inserted] = client.connection_ctx->streams.emplace(
         std::move(stream_shared_ptr),
-        mad::nexus::stream_context{ new_stream, connection_context,
+        mad::nexus::stream_context{ new_stream, *client.connection_ctx,
                                     client.callbacks.on_stream_data_received });
     if (inserted) {
         MAD_LOG_DEBUG_I(client, "Client peer stream started!");
@@ -48,15 +48,15 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventPeerStreamStarted(
 
 static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionCallbackImpl(
     MsQuicConnection * chandle, mad::nexus::msquic_client & client,
-    mad::nexus::connection_context & connection_context,
     QUIC_CONNECTION_EVENT & event) {
     MAD_LOG_INFO_I(client, "ClientConnectionCallback() - Event Type: `{}`",
                    std::to_underlying(event.Type));
 
     switch (event.Type) {
         case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+
             return ClientConnectionEventPeerStreamStarted(
-                event.PEER_STREAM_STARTED, client, connection_context);
+                event.PEER_STREAM_STARTED, client);
 
         case QUIC_CONNECTION_EVENT_CONNECTED: {
             auto & v = event.CONNECTED;
@@ -69,7 +69,7 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionCallbackImpl(
             client.connection_ctx =
                 std::make_unique<mad::nexus::connection_context>(chandle);
             assert(client.callbacks.on_connected);
-            client.callbacks.on_connected(client.connection_ctx.get());
+            client.callbacks.on_connected(*(client.connection_ctx.get()));
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: {
             auto & v = event.SHUTDOWN_INITIATED_BY_PEER;
@@ -95,13 +95,14 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionCallbackImpl(
         } break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
             // TODO: Invoke on_client_disconnect callback?
-            client.callbacks.on_disconnected(client.connection_ctx.get());
-            client.connection_ctx.reset(nullptr);
-            // If the app not initiated the cleanup for the connection
-            // do it ourselves.
-            if (!event.SHUTDOWN_COMPLETE.AppCloseInProgress) {
-                MsQuic->ConnectionClose(chandle->Handle);
+            if (client.connection_ctx) {
+                client.callbacks.on_disconnected(
+                    *(client.connection_ctx.get()));
+                client.connection_ctx.reset(nullptr);
             }
+
+            // FIXME: Reset connection ptr!
+
         } break;
         case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED: {
             // TODO: Store resumption ticket for later?
@@ -127,8 +128,7 @@ static QUIC_STATUS ClientConnectionCallback(MsQuicConnection * connection,
     assert(event);
 
     auto & client = *static_cast<mad::nexus::msquic_client *>(context);
-    auto & cctx = *client.connection_ctx;
-    return ClientConnectionCallbackImpl(connection, client, cctx, *event);
+    return ClientConnectionCallbackImpl(connection, client, *event);
 }
 
 namespace mad::nexus {
@@ -148,12 +148,14 @@ std::error_code msquic_client::connect(std::string_view target,
         connection_ptr.get());
 
     if (!connection.IsValid()) {
+        connection_ptr.reset();
         return quic_error_code::connection_initialization_failed;
     }
 
     auto target_str = std::string{ target };
     if (QUIC_FAILED(connection.Start(
             application.configuration(), target_str.c_str(), port))) {
+        connection_ptr.reset();
         return quic_error_code::connection_start_failed;
     }
 

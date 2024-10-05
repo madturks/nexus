@@ -24,7 +24,7 @@
 static std::atomic_bool stop;
 static std::vector<std::thread> threads;
 
-static std::unordered_map<std::string, mad::nexus::stream_context *> streams;
+static std::unordered_map<std::string, std::reference_wrapper<mad::nexus::stream_context>> streams;
 static std::string message = "hello from the other side";
 
 static mad::log_printer logger{"console"};
@@ -32,7 +32,7 @@ static mad::log_printer logger{"console"};
 static void test_loop(mad::nexus::quic_server & quic_server) {
 
     for (auto & [str, stream] : streams) {
-        (void) quic_server.send(stream, quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
+        (void) quic_server.send(stream.get(), quic_server.build_message<mad::schemas::MonsterBuilder>([](auto & mb) {
             mb.add_hp(150);
             mb.add_mana(80);
         }));
@@ -45,8 +45,7 @@ static std::size_t app_stream_data_received([[maybe_unused]] void * uctx, std::s
     return 0;
 }
 
-static void server_on_connected(void * uctx, mad::nexus::connection_context * cctx) {
-    assert(cctx);
+static void server_on_connected(void * uctx, mad::nexus::connection_context & cctx) {
     assert(uctx);
 
     MAD_LOG_INFO_I(logger, "app received new connection!");
@@ -66,7 +65,7 @@ static void server_on_connected(void * uctx, mad::nexus::connection_context * cc
                 mb.add_mana(5);
             });
 
-            if (!quic_server.send(r.value(), std::move(msg))) {
+            if (!quic_server.send(r.value().get(), std::move(msg))) {
                 MAD_LOG_ERROR_I(logger, "could not send msg!");
             }
         }
@@ -82,8 +81,7 @@ static void server_on_connected(void * uctx, mad::nexus::connection_context * cc
     MAD_LOG_INFO_I(logger, "server_on_connected return");
 }
 
-static void server_on_disconnected(void * uctx, mad::nexus::connection_context * cctx) {
-    assert(cctx);
+static void server_on_disconnected(void * uctx, mad::nexus::connection_context & cctx) {
     assert(uctx);
 
     MAD_LOG_INFO_I(logger, "app received disconnection !");

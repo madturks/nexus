@@ -71,7 +71,7 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventConnected(
                 QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
             assert(server.callbacks.on_connected);
             // Notify app
-            server.callbacks.on_connected(&v.get());
+            server.callbacks.on_connected(v.get());
             return std::optional{ QUIC_STATUS_SUCCESS };
         })
         .or_else([&] {
@@ -96,7 +96,7 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventShutdownCompleted(
 
     return server.remove_connection(connection)
         .and_then([&](auto && v) {
-            server.callbacks.on_disconnected(&v.mapped());
+            server.callbacks.on_disconnected(v.mapped());
             return std::optional{ QUIC_STATUS_SUCCESS };
         })
         .or_else([&] {
@@ -126,6 +126,9 @@ static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context,
     auto & server = *static_cast<::server *>(context);
     // We're only handling the connected and shutdown completed
     // events. Rest are for logging purposes.
+
+    MAD_LOG_INFO_I(server, "Server connection callback {}", std::to_underlying(event->Type));
+
 
     switch (event->Type) {
         case QUIC_CONNECTION_EVENT_CONNECTED:
