@@ -13,7 +13,7 @@ public:
     virtual ~msquic_client() override;
 
     virtual std::error_code connect(std::string_view target,
-                                                  std::uint16_t port) override;
+                                    std::uint16_t port) override;
 
     std::unique_ptr<connection_context> connection_ctx;
 
@@ -23,7 +23,6 @@ private:
     friend std::unique_ptr<quic_client> msquic_application::make_client();
     msquic_client(const msquic_application & app);
 
- 
     std::shared_ptr<void> connection_ptr;
 };
 } // namespace mad::nexus

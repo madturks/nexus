@@ -73,10 +73,11 @@ run_command(
 
 flatbuffers = dependency('flatbuffers', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
-gtest = dependency('gtest', include_type: 'system')
+gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
+catch2 = dependency('catch2-with-main', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')
@@ -106,7 +107,8 @@ run_command(
 
 # Define a target to the schemas.
 fbs_schemas = declare_dependency(
-    include_directories: include_directories('tgt/fbs-schemas/include'),
+    include_directories: include_directories('tgt/fbs-schemas/include', is_system: true),
+    
 )
 
 # msquic is a vendored library, and we have to declare it manually since it
@@ -152,11 +154,4 @@ executable(
     'msquic-test-client',
     'sample/src/msquic_test_client.cpp',
     dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
-)
-
-executable(
-    'msquic-sample',
-    'sample/src/msquic_sample.cpp',
-    dependencies: [msquic],
-    cpp_args: '-Wno-everything',
 )

@@ -17,7 +17,7 @@ madturks_core_log = declare_dependency(
 
 madturks_core_log_ut = executable(
     'ut-madturks-core-log',
-    'tests/unit/ut_log.cpp',
+    'test/unit/ut_log.cpp',
     dependencies: [madturks_core_log, madturks_core_temputils, gtest, gmock],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
 )

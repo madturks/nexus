@@ -1,9 +1,11 @@
+#include <mad/macros.hpp>
 #include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>
 #include <mad/nexus/msquic/msquic_server.hpp>
 
 #include <msquic.hpp>
 
+#include <filesystem>
 #include <memory>
 
 namespace {
@@ -26,7 +28,7 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     settings.SetPeerBidiStreamCount(1);
     settings.SetStreamRecvWindowDefault(cfg.stream_receive_window);
 
-    //settings.SetStreamRecvWindowDefault(uint32_t Value)
+    // settings.SetStreamRecvWindowDefault(uint32_t Value)
 
     return settings;
 }
@@ -34,12 +36,17 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
 
 namespace mad::nexus {
 std::unique_ptr<quic_application>
-make_msquic_application(const struct quic_configuration & cfg) {
+make_msquic_application(const quic_configuration & cfg) {
     return std::unique_ptr<msquic_application>(new msquic_application(cfg));
 }
 
 msquic_application::msquic_application(const quic_configuration & cfg) :
     quic_application(cfg) {
+    MAD_EXPECTS(!cfg.appname.empty());
+    MAD_EXPECTS(!cfg.alpn.empty());
+    MAD_EXPECTS(std::filesystem::exists(cfg.credentials.certificate_path));
+    MAD_EXPECTS(std::filesystem::exists(cfg.credentials.private_key_path));
+
     registration_ptr = std::make_shared<MsQuicRegistration>(
         cfg.appname.c_str(), QUIC_EXECUTION_PROFILE_LOW_LATENCY, true);
 
@@ -58,29 +65,34 @@ msquic_application::msquic_application(const quic_configuration & cfg) :
 
     configuration_ptr = std::make_shared<MsQuicConfiguration>(
         *registration_ptr.get(), alpn, msquic_cfg, credential_config);
+
+    MAD_ENSURES(registration_ptr->IsValid());
+    MAD_ENSURES(configuration_ptr->IsValid());
+    MAD_ENSURES(registration_ptr);
+    MAD_ENSURES(configuration_ptr);
 }
 
 msquic_application::~msquic_application() = default;
 
 std::unique_ptr<quic_server> msquic_application::make_server() {
-    assert(registration_ptr);
-    assert(configuration_ptr);
+    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
+    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
     return std::unique_ptr<msquic_server>(new msquic_server(*this));
 }
 
 std::unique_ptr<quic_client> msquic_application::make_client() {
-    assert(registration_ptr);
-    assert(configuration_ptr);
+    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
+    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
     return std::unique_ptr<msquic_client>(new msquic_client(*this));
 }
 
 const MsQuicRegistration & msquic_application::registration() const {
-    assert(registration_ptr);
+    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
     return *static_cast<MsQuicRegistration *>(registration_ptr.get());
 }
 
 const MsQuicConfiguration & msquic_application::configuration() const {
-    assert(configuration_ptr);
+    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
     return *static_cast<MsQuicConfiguration *>(configuration_ptr.get());
 }
 

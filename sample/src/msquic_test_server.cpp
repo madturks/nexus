@@ -1,5 +1,6 @@
 
 #include <mad/log_printer.hpp>
+#include <mad/macro>
 #include <mad/nexus/quic.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_error_code.hpp>
@@ -70,11 +71,14 @@ static void test_loop(mad::nexus::quic_server & quic_server) {
                 }));
     }
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(250ms);
 }
 
 static std::size_t app_stream_data_received([[maybe_unused]] void * uctx,
                                             std::span<const std::uint8_t> buf) {
+    MAD_EXPECTS(uctx);
+    MAD_EXPECTS(buf.data());
+    MAD_EXPECTS(!buf.empty());
     MAD_LOG_INFO_I(logger, "app_stream_data_received: received {} byte(s)",
                    buf.size_bytes());
     return 0;
@@ -111,7 +115,6 @@ static void server_on_connected(void * uctx,
                 mb.add_name(name);
                 mb.add_pos(&coords);
                 auto f = mb.Finish();
-
                 mad::schemas::EnvelopeBuilder env{ fbb };
                 env.add_message(f.Union());
                 env.add_message_type(mad::schemas::Message::Monster);

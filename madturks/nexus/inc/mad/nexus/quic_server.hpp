@@ -5,12 +5,11 @@
 
 namespace mad::nexus {
 
-    class quic_server : virtual public quic_base {
-    public:
+class quic_server : virtual public quic_base {
+public:
+    virtual ~quic_server() override;
 
-        virtual ~quic_server() override;
-
-        [[nodiscard]] virtual std::error_code listen() = 0;
-    };
+    [[nodiscard]] virtual std::error_code listen() = 0;
+};
 
 } // namespace mad::nexus
