@@ -158,7 +158,7 @@ namespace mad {
 
     template <circular_buffer_backend BT>
     circular_buffer_vm<BT>::circular_buffer_vm(const size_t size, auto_align_to_page) :
-        circular_buffer_vm(size + (static_cast<size_t>(getpagesize()) - (size % static_cast<size_t>(getpagesize())))) {}
+        circular_buffer_vm(size + (size % static_cast<size_t>(getpagesize()))) {}
 
     template <circular_buffer_backend BT>
     circular_buffer_vm<BT>::circular_buffer_vm(circular_buffer_vm &&) = default;

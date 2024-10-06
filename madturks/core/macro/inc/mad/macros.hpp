@@ -1,5 +1,12 @@
 #pragma once
 
+#include <cassert>
+
+#define MAD_ASSERT(what) assert(what)
+#define MAD_EXPECTS(what) MAD_ASSERT(what)
+#define MAD_ENSURES(what) MAD_ASSERT(what)
+
+// FIXME: MSVC?
 #define MAD_ALWAYS_INLINE inline __attribute__((always_inline))
 
 #if defined(__GNUC__) || defined(__clang__)

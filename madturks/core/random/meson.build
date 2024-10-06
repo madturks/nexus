@@ -15,14 +15,14 @@ madturks_core_random = declare_dependency(
 
 madturks_core_random_string_ut = executable(
     'ut-madturks-core-random-string',
-    'tests/unit/ut_random_string.cpp',
+    'test/unit/ut_random_string.cpp',
     dependencies: [madturks_core_random, gtest, gmock],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
 )
 
 madturks_core_random_ut = executable(
     'ut-madturks-core-random',
-    'tests/unit/ut_random.cpp',
+    'test/unit/ut_random.cpp',
     dependencies: [madturks_core_random, gtest, gmock],
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
 )

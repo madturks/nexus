@@ -16,7 +16,7 @@ IncludeCategories:
   - Regex: '^<mad/.*>$'
     Priority: 1
     SortPriority: 1  # Project-specific headers (e.g., <mad/...>)
-  - Regex: '^<fmt/.*>$|^<flatbuffers/.*>$|^<msquic.hpp>$'
+  - Regex: '^<fmt/.*>$|^<flatbuffers/.*>$|^<msquic.hpp>$|^<catch2/.*>$'
     Priority: 2
     SortPriority: 2  # Third-party library headers (e.g., fmt, flatbuffers, msquic)
   - Regex: '^<netinet/.*>$'

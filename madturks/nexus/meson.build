@@ -29,3 +29,12 @@ nexus = declare_dependency(
     include_directories: include_directories('inc'),
     dependencies: [madturks_core_macro, madturks_core_concurrency, madturks_core_container, madturks_core_log]
 )
+
+nexus_stream_callback_integration_tests = executable(
+    'it-madturks-nexus-stream-callback',
+    'test/integration/it_stream_callbacks.cpp',
+    dependencies: [nexus, madturks_core_temputils, madturks_core_random, catch2, msquic, flatbuffers, fbs_schemas],
+    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
+)
+
+test('Nexus stream callback integration tests', nexus_stream_callback_integration_tests)

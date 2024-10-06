@@ -77,6 +77,7 @@ gtest = dependency('gtest', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
+catch2 = dependency('catch2-with-main', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')
@@ -152,11 +153,4 @@ executable(
     'msquic-test-client',
     'sample/src/msquic_test_client.cpp',
     dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
-)
-
-executable(
-    'msquic-sample',
-    'sample/src/msquic_sample.cpp',
-    dependencies: [msquic],
-    cpp_args: '-Wno-everything',
 )
