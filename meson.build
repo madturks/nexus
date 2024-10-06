@@ -73,7 +73,7 @@ run_command(
 
 flatbuffers = dependency('flatbuffers', include_type: 'system')
 fmt = dependency('fmt', include_type: 'system')
-gtest = dependency('gtest', include_type: 'system')
+gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
@@ -107,7 +107,8 @@ run_command(
 
 # Define a target to the schemas.
 fbs_schemas = declare_dependency(
-    include_directories: include_directories('tgt/fbs-schemas/include'),
+    include_directories: include_directories('tgt/fbs-schemas/include', is_system: true),
+    
 )
 
 # msquic is a vendored library, and we have to declare it manually since it

@@ -35,7 +35,7 @@ struct send_buffer {
      * Sentinel value used as a placeholder for QUIC_BUFFER's space
      * until the real one is written.
      */
-    [[maybe_unused]] constexpr static std::uint8_t quic_buf_sentinel [] = {
+    [[maybe_unused]] constexpr static std::uint8_t quic_buf_sentinel [k_QuicBufStructSize] = {
         0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD, 0xC0, 0xDE,
         0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xFA, 0xCE
     };

@@ -127,8 +127,8 @@ static QUIC_STATUS ServerConnectionCallback(HQUIC chandle, void * context,
     // We're only handling the connected and shutdown completed
     // events. Rest are for logging purposes.
 
-    MAD_LOG_INFO_I(server, "Server connection callback {}", std::to_underlying(event->Type));
-
+    MAD_LOG_INFO_I(server, "Server connection callback {}",
+                   std::to_underlying(event->Type));
 
     switch (event->Type) {
         case QUIC_CONNECTION_EVENT_CONNECTED:

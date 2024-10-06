@@ -51,7 +51,12 @@ lttng start
 # lttng stop msquic
 ```
 
+### Format the project
 
+```
+# https://mesonbuild.com/Code-formatting.html
+ninja -C tgt clang-format
+```
 
 
 ### 

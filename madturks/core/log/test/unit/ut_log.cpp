@@ -1,17 +1,17 @@
 
 
 #include <mad/log_printer.hpp>
-
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-
-#include <filesystem>
-#include <cstring>
-#include <fstream>
-
 #include <mad/temputils.hpp>
 
-static const char * default_config = R"(# level is optional for both sinks and loggers
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+
+static const char * default_config =
+    R"(# level is optional for both sinks and loggers
 # level for error logging is 'err', not 'error'
 # _st => single threaded, _mt => multi threaded
 # syslog_sink is automatically thread-safe by default, no need for _mt suffix
@@ -64,7 +64,7 @@ public:
         uut.set_log_level(mad::log_level::off);
     }
 
-    mad::log_printer uut{"console"};
+    mad::log_printer uut{ "console" };
     value_provider vp;
 };
 
@@ -77,17 +77,21 @@ TEST_P(log_level_fixture, level_check_happy_path) {
 
 TEST_P(log_level_fixture, level_check_false_path) {
     EXPECT_CALL(vp, get_text()).Times(0);
-    uut.set_log_level(static_cast<mad::log_level>(std::to_underlying(GetParam()) + 1));
-    ASSERT_EQ(static_cast<mad::log_level>(std::to_underlying(GetParam()) + 1), uut.get_log_level());
+    uut.set_log_level(
+        static_cast<mad::log_level>(std::to_underlying(GetParam()) + 1));
+    ASSERT_EQ(static_cast<mad::log_level>(std::to_underlying(GetParam()) + 1),
+              uut.get_log_level());
     MAD_LOG_I(uut, GetParam(), "This should not be printed: {}", vp.get_text());
 }
 
-INSTANTIATE_TEST_SUITE_P(validate_level, log_level_fixture,
-                         ::testing::Values(mad::log_level::trace, mad::log_level::debug, mad::log_level::info, mad::log_level::warn,
-                                           mad::log_level::error, mad::log_level::critical));
+INSTANTIATE_TEST_SUITE_P(
+    validate_level, log_level_fixture,
+    ::testing::Values(mad::log_level::trace, mad::log_level::debug,
+                      mad::log_level::info, mad::log_level::warn,
+                      mad::log_level::error, mad::log_level::critical));
 
 TEST(log_printer, default_logger) {
-    mad::log_printer def{std::shared_ptr<void>(nullptr)};
+    mad::log_printer def{ std::shared_ptr<void>(nullptr) };
     ASSERT_NO_THROW(def.set_log_level(mad::log_level::info));
     ASSERT_NO_THROW(def.log_info<>("aa"));
     ASSERT_NO_THROW(def.log_info<>("aa"));
@@ -101,7 +105,7 @@ public:
         uut.set_log_level(mad::log_level::off);
     }
 
-    mad::log_printer uut{"console"};
+    mad::log_printer uut{ "console" };
     value_provider vp;
 };
 
@@ -116,27 +120,30 @@ TEST_F(log_fixture, cause_format_exception) {
     }
 }
 
-#define LOG_TEST_CASE_SHOULD_LOG(LEVEL, MACRO_PREFIX, MACRO_SUFFIX)                                                                        \
-    TEST_F(log_fixture, should_log_##MACRO_PREFIX##MACRO_SUFFIX) {                                                                         \
-        int rem = std::to_underlying(LEVEL);                                                                                               \
-        EXPECT_CALL(vp, get_text()).Times(rem + 1);                                                                                        \
-        ON_CALL(vp, get_text()).WillByDefault(testing::Return("Mock Me"));                                                                 \
-        while (rem >= 0) {                                                                                                                 \
-            uut.set_log_level(static_cast<mad::log_level>(rem));                                                                           \
-            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should be logged {}", vp.get_text());                                                \
-            --rem;                                                                                                                         \
-        }                                                                                                                                  \
-        SUCCEED();                                                                                                                         \
+#define LOG_TEST_CASE_SHOULD_LOG(LEVEL, MACRO_PREFIX, MACRO_SUFFIX)            \
+    TEST_F(log_fixture, should_log_##MACRO_PREFIX##MACRO_SUFFIX) {             \
+        int rem = std::to_underlying(LEVEL);                                   \
+        EXPECT_CALL(vp, get_text()).Times(rem + 1);                            \
+        ON_CALL(vp, get_text()).WillByDefault(testing::Return("Mock Me"));     \
+        while (rem >= 0) {                                                     \
+            uut.set_log_level(static_cast<mad::log_level>(rem));               \
+            MACRO_PREFIX##MACRO_SUFFIX##_I(                                    \
+                uut, "This should be logged {}", vp.get_text());               \
+            --rem;                                                             \
+        }                                                                      \
+        SUCCEED();                                                             \
     }
 
-#define LOG_TEST_CASE_SHOULD_NOT_LOG(LEVEL, MACRO_PREFIX, MACRO_SUFFIX)                                                                    \
-    TEST_F(log_fixture, should_not_log_##MACRO_PREFIX##MACRO_SUFFIX) {                                                                     \
-        EXPECT_CALL(vp, get_text()).Times(0);                                                                                              \
-        for (int i = std::to_underlying(LEVEL) + 1; i < std::to_underlying(mad::log_level::max); i++) {                                    \
-            uut.set_log_level(static_cast<mad::log_level>(i));                                                                             \
-            MACRO_PREFIX##MACRO_SUFFIX##_I(uut, "This should not be logged {}", vp.get_text());                                            \
-        }                                                                                                                                  \
-        SUCCEED();                                                                                                                         \
+#define LOG_TEST_CASE_SHOULD_NOT_LOG(LEVEL, MACRO_PREFIX, MACRO_SUFFIX)        \
+    TEST_F(log_fixture, should_not_log_##MACRO_PREFIX##MACRO_SUFFIX) {         \
+        EXPECT_CALL(vp, get_text()).Times(0);                                  \
+        for (int i = std::to_underlying(LEVEL) + 1;                            \
+             i < std::to_underlying(mad::log_level::max); i++) {               \
+            uut.set_log_level(static_cast<mad::log_level>(i));                 \
+            MACRO_PREFIX##MACRO_SUFFIX##_I(                                    \
+                uut, "This should not be logged {}", vp.get_text());           \
+        }                                                                      \
+        SUCCEED();                                                             \
     }
 
 LOG_TEST_CASE_SHOULD_LOG(mad::log_level::trace, MAD_LOG_, TRACE)
@@ -155,12 +162,14 @@ LOG_TEST_CASE_SHOULD_NOT_LOG(mad::log_level::critical, MAD_LOG_, CRITICAL)
 // LOG_TEST_CASE_SHOULD_NOT_LOG(mad::log_level::error,  MAD_RAISE_,  ERROR)
 // LOG_TEST_CASE_SHOULD_NOT_LOG(mad::log_level::critical,MAD_RAISE_, CRITICAL)
 
-static auto toml_file_path = std::filesystem::temp_directory_path().append("ncf.log.default.toml");
+static auto toml_file_path = std::filesystem::temp_directory_path().append(
+    "ncf.log.default.toml");
 
 static void write_default_config() {
     if (auto result = mad::make_temp_file()) {
         auto & [path, ofs] = (*result);
-        ofs.write(default_config, static_cast<std::streamsize>(std::strlen(default_config)));
+        ofs.write(default_config,
+                  static_cast<std::streamsize>(std::strlen(default_config)));
         ofs.close();
         std::filesystem::rename(path, toml_file_path);
     }

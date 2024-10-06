@@ -137,8 +137,9 @@ TEST_CASE("Ensure it can handle multiple messages in a single buffer",
     for (int i = 0; i < kHowManyMessages; i++) {
         auto msg{ encode_msg() };
         auto data_span{ msg.data_span() };
-
-        storage.append_range(data_span);
+        // GCC does not support this
+        //storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     const QUIC_BUFFER buf{ static_cast<std::uint32_t>(storage.size()),
@@ -189,7 +190,7 @@ TEST_CASE("Ensure it can handle a single message split into three buffers",
         auto msg{ encode_msg() };
         auto data_span{ msg.data_span() };
 
-        storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     const QUIC_BUFFER buffers [3] = {
@@ -245,7 +246,7 @@ TEST_CASE("Ensure it can handle a single message split into a buffer per byte "
         auto msg{ encode_msg() };
         auto data_span{ msg.data_span() };
 
-        storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     QUIC_BUFFER * buffers = new QUIC_BUFFER [storage.size()];
@@ -294,7 +295,7 @@ TEST_CASE("Ensure it can handle multiple messages in a single buffer but "
     for (int i = 0; i < kHowManyMessages; i++) {
         auto msg{ encode_msg_large(4000) };
         auto data_span{ msg.data_span() };
-        storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     std::uint32_t called_times = 0;
@@ -342,7 +343,7 @@ TEST_CASE("Single message larger than the receive buffer",
     for (int i = 0; i < kHowManyMessages; i++) {
         auto msg{ encode_msg_large(5000) };
         auto data_span{ msg.data_span() };
-        storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     std::uint32_t called_times = 0;
@@ -402,7 +403,7 @@ TEST_CASE("Ensure it can handle a single message split into a buffer per byte "
         auto msg{ encode_msg() };
         auto data_span{ msg.data_span() };
 
-        storage.append_range(data_span);
+        storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
     QUIC_BUFFER * buffers = new QUIC_BUFFER [storage.size()];
@@ -411,7 +412,7 @@ TEST_CASE("Ensure it can handle a single message split into a buffer per byte "
         buffers [i].Length = 1;
     }
 
-    for (int i = 0; i < storage.size(); i++) {
+    for (auto i = 0zu; i < storage.size(); i++) {
         receive_event evt{ .AbsoluteOffset = 0,
                            .TotalBufferLength = 1,
                            .Buffers = &buffers [i],

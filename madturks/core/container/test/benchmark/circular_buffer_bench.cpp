@@ -20,8 +20,8 @@
 
 // proj
 #include <mad/circular_buffer.hpp>
-#include <mad/circular_buffer_vm.hpp>
 #include <mad/circular_buffer_pow2.hpp>
+#include <mad/circular_buffer_vm.hpp>
 #include <mad/random_bytegen.hpp>
 // google.bench
 #include <benchmark/benchmark.h>
@@ -37,7 +37,7 @@ struct cb_fixture : public benchmark::Fixture {
 
     void TearDown(const ::benchmark::State &) {}
 
-    T buffer{static_cast<std::size_t>(getpagesize())};
+    T buffer{ static_cast<std::size_t>(getpagesize()) };
     std::array<unsigned char, 4096 / 4> putb, getb, puta;
 };
 
@@ -76,7 +76,7 @@ void put_overwrite(benchmark::State & st) {
 
 template <class Q>
 void peek(benchmark::State & st) {
-    Q buffer{static_cast<std::size_t>(getpagesize())};
+    Q buffer{ static_cast<std::size_t>(getpagesize()) };
     std::array<unsigned char, 4096 / 4> putb, getb;
     buffer.put(putb);
     for (auto _ : st) {
@@ -86,7 +86,7 @@ void peek(benchmark::State & st) {
 
 template <class Q>
 void putget(benchmark::State & st) {
-    Q buffer{static_cast<std::size_t>(getpagesize())};
+    Q buffer{ static_cast<std::size_t>(getpagesize()) };
     std::array<unsigned char, 4096 / 4> putb, getb;
     for (auto _ : st) {
         benchmark::DoNotOptimize(buffer.put(putb));
@@ -102,8 +102,10 @@ BENCHMARK_TEMPLATE(put, mad::circular_buffer_vm<mad::vm_cb_backend_shm>);
 
 BENCHMARK_TEMPLATE(put_overwrite, mad::circular_buffer);
 BENCHMARK_TEMPLATE(put_overwrite, mad::circular_buffer_pow2);
-BENCHMARK_TEMPLATE(put_overwrite, mad::circular_buffer_vm<mad::vm_cb_backend_mmap>);
-BENCHMARK_TEMPLATE(put_overwrite, mad::circular_buffer_vm<mad::vm_cb_backend_shm>);
+BENCHMARK_TEMPLATE(put_overwrite,
+                   mad::circular_buffer_vm<mad::vm_cb_backend_mmap>);
+BENCHMARK_TEMPLATE(put_overwrite,
+                   mad::circular_buffer_vm<mad::vm_cb_backend_shm>);
 
 BENCHMARK_TEMPLATE(peek, mad::circular_buffer);
 BENCHMARK_TEMPLATE(peek, mad::circular_buffer_pow2);
