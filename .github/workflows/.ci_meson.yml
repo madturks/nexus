@@ -24,8 +24,9 @@ jobs:
           python-version: '3.x'
       - name: Install dependencies
         run: |
-          python -m pip install meson==1.5.2 conan==2.7.1 ninja
-          sudo apt install -y cmake gcc-14 g++-14 llvm-18 lld-18 clang-18 libclang-rt-18-dev libc++-18-dev libc++abi-18-dev libunwind-18-dev pkg-config ninja-build
+          # Let's read the packages from devcontainer.json file.
+          python -m pip install $(sed 's,//.*,,g' .devcontainer/devcontainer.json  | jq -r '.features["ghcr.io/deep-space-cartel/devcontainers-features/pip:1"].packages')
+          sudo apt install -y $(sed 's,//.*,,g' .devcontainer/devcontainer.json  | jq -r '.features["ghcr.io/deep-space-cartel/devcontainers-features/apt:1"].packages')
       - name: Configure Project
         run: meson setup tgt --wipe --native-file=.config/meson-${{ matrix.meson_config }}
         env:
