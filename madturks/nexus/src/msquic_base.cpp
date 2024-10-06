@@ -28,42 +28,6 @@ namespace {
         return sl;
     }
 
-    void prettyPrintHex(const void * data, size_t length) {
-        const unsigned char * ptr = static_cast<const unsigned char *>(data);
-        const size_t bytes_per_line = 16;
-
-        for (size_t i = 0; i < length; i += bytes_per_line) {
-            std::ostringstream oss;
-
-            // Print the offset
-            oss << std::setw(8) << std::setfill('0') << std::hex << i << ": ";
-
-            // Print hexadecimal bytes
-            for (size_t j = 0; j < bytes_per_line; ++j) {
-                if (i + j < length) {
-                    oss << std::setw(2) << std::setfill('0')
-                        << static_cast<int>(ptr [i + j]) << ' ';
-                } else {
-                    oss << "   ";
-                }
-            }
-
-            // Print ASCII characters
-            oss << " ";
-            for (size_t j = 0; j < bytes_per_line; ++j) {
-                if (i + j < length) {
-                    unsigned char c = ptr [i + j];
-                    oss << (std::isprint(c) ? c : '.');
-                } else {
-                    oss << ' ';
-                }
-            }
-
-            // Log the line using spdlog
-            MAD_LOG_INFO_I(stream_logger(), oss.str());
-        }
-    }
-
     using send_complete_event = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
     using receive_event = decltype(QUIC_STREAM_EVENT::RECEIVE);
     using shutdown_complete_event =
@@ -119,7 +83,7 @@ namespace {
      * @return QUIC_STATUS Return code indicating callback result
      */
     MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackSendComplete(
-        stream_context & sctx, send_complete_event & event) {
+        [[maybe_unused]] stream_context & sctx, send_complete_event & event) {
         //
         // A previous StreamSend call has completed, and the context is
         // being returned back to the app.
@@ -146,40 +110,69 @@ namespace {
      */
     MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
                                                         receive_event & event) {
-        // Pull the received data into user-space receive buffer
-        for (std::uint32_t i = 0; i < event.BufferCount; i++) {
-            sctx.rbuf().put(event.Buffers [i].Buffer, event.Buffers [i].Length);
-        }
 
-        // Deliver all complete messages to the app layer
-        for (auto available_span = sctx.rbuf().available_span();
-             available_span.size_bytes() >= sizeof(std::uint32_t);
-             available_span = sctx.rbuf().available_span()) {
-            // Read the size of the message
-            auto size = *reinterpret_cast<const std::uint32_t *>(
-                available_span.data());
-            // Size is little-endian.
-            if constexpr (std::endian::native == std::endian::big) {
-                size = std::byteswap(size);
+        std::size_t buffer_offset = 0;
+        for (std::uint32_t buffer_idx = 0; buffer_idx < event.BufferCount;) {
+
+            const auto & buffer = event.Buffers [buffer_idx];
+
+            const auto pull_amount = std::min(
+                sctx.rbuf().empty_space(),
+                static_cast<std::size_t>(buffer.Length - buffer_offset));
+            assert(pull_amount > 0);
+            if (pull_amount == 0) {
+                MAD_LOG_ERROR_I(stream_logger(),
+                                "No empty space left in the receive buffer!");
+                // Probably corrupt message, disconnect and break
+                break;
+            }
+            assert(sctx.rbuf().put(buffer.Buffer + buffer_offset, pull_amount));
+            buffer_offset += pull_amount;
+
+            std::uint32_t push_payload_cnt = 0;
+
+            // Deliver all complete messages to the app layer
+            for (auto available_span = sctx.rbuf().available_span();
+                 available_span.size_bytes() >= sizeof(std::uint32_t);
+                 available_span = sctx.rbuf().available_span()) {
+                // Read the size of the message
+                auto size = *reinterpret_cast<const std::uint32_t *>(
+                    available_span.data());
+                // Size is little-endian.
+                if constexpr (std::endian::native == std::endian::big) {
+                    size = std::byteswap(size);
+                }
+
+                // Continue here!
+                MAD_LOG_DEBUG_I(stream_logger(), "Message size {}", size);
+                if ((available_span.size_bytes() - sizeof(std::uint32_t)) >=
+                    size) {
+                    auto message = available_span.subspan(
+                        sizeof(std::uint32_t), size);
+
+                    // Only deliver complete messages to the application layer.
+                    [[maybe_unused]] auto consumed_bytes =
+                        sctx.on_data_received(message);
+                    push_payload_cnt++;
+                    MAD_LOG_DEBUG_I(stream_logger(), "Push payload count {}",
+                                    push_payload_cnt);
+
+                    sctx.rbuf().mark_as_read(sizeof(std::uint32_t) +
+                                             message.size_bytes());
+                    continue;
+                }
+                MAD_LOG_DEBUG_I(
+                    stream_logger(),
+                    "Partial data received {}, need {} more byte(s)",
+                    available_span.size_bytes(),
+                    size - available_span.size_bytes());
+                break;
             }
 
-            // Continue here!
-            MAD_LOG_DEBUG_I(stream_logger(), "Message size {}", size);
-            if ((available_span.size_bytes() - sizeof(std::uint32_t)) >= size) {
-                auto message = available_span.subspan(
-                    sizeof(std::uint32_t), size - sizeof(std::uint32_t));
-                // Only deliver complete messages to the application layer.
-                [[maybe_unused]] auto consumed_bytes = sctx.on_data_received(
-                    message);
-                sctx.rbuf().mark_as_read(sizeof(std::uint32_t) +
-                                         message.size_bytes());
-                continue;
+            // Not sure about this
+            if (buffer_offset == buffer.Length) {
+                buffer_idx++;
             }
-            MAD_LOG_DEBUG_I(stream_logger(),
-                            "Partial data received {}, need {} more byte(s)",
-                            available_span.size_bytes(),
-                            size - available_span.size_bytes());
-            break;
         }
 
         MAD_LOG_DEBUG_I(
@@ -330,15 +323,24 @@ auto msquic_base::send(stream_context & sctx, send_buffer buf) -> std::size_t {
     // We have 16 bytes of reserved space at the beginning of 'buf'
     // We're gonna use it for storing QUIC_BUF.
 
-    MAD_LOG_INFO("sending {} bytes of data, offset: {}, size: {}", buf.used,
-                 buf.offset, buf.buf_size);
+    const auto used = buf.buf_size - buf.offset;
 
-    //prettyPrintHex(buf.buf + buf.offset, buf.used);
+    auto quic_resv = (buf.buf + buf.buf_size) - sizeof(QUIC_BUFFER);
+    [[maybe_unused]] constexpr std::uint8_t res [] = { 0xDE, 0xAD, 0xBE, 0xEF,
+                                                       0xBA, 0xAD, 0xC0, 0xDE,
+                                                       0xCA, 0xFE, 0xBA, 0xBE,
+                                                       0xDE, 0xAD, 0xFA, 0xCE };
+    assert(0 == std::memcmp(quic_resv, res, sizeof(res)));
 
-    QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(buf.buf + buf.offset);
-    qbuf->Buffer = reinterpret_cast<std::uint8_t *>(buf.buf + buf.offset +
-                                                    sizeof(QUIC_BUFFER));
-    qbuf->Length = static_cast<std::uint32_t>(buf.used - sizeof(QUIC_BUFFER));
+    MAD_LOG_DEBUG("encoded size = {}",
+                  *reinterpret_cast<std::uint32_t *>(buf.buf + buf.offset));
+
+    QUIC_BUFFER * qbuf = reinterpret_cast<QUIC_BUFFER *>(quic_resv);
+    qbuf->Length = static_cast<std::uint32_t>(used - sizeof(QUIC_BUFFER));
+    qbuf->Buffer = reinterpret_cast<std::uint8_t *>(buf.buf + buf.offset);
+
+    MAD_LOG_DEBUG("sending {} bytes of data of {}, offset: {}, size: {}",
+                  qbuf->Length, used, buf.offset, buf.buf_size);
 
     // We're using the context pointer here to store the key.
     if (auto status = MsQuic->StreamSend(static_cast<HQUIC>(sctx.stream()),
@@ -346,10 +348,7 @@ auto msquic_base::send(stream_context & sctx, send_buffer buf) -> std::size_t {
         QUIC_FAILED(status)) {
         return 0;
     }
-
-    // MAD_LOG_DEBUG("sent, queue size {}", sctx->in_flight_count());
-    // FIXME:
-    return buf.used - sizeof(QUIC_BUFFER);
+    return used - sizeof(QUIC_BUFFER);
 }
 
 } // namespace mad::nexus

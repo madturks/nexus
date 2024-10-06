@@ -5,6 +5,12 @@
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 
+#include <fbs-schemas/chat_generated.h>
+#include <fbs-schemas/main_generated.h>
+#include <fbs-schemas/monster_generated.h>
+
+#include "lorem_ipsum.hpp"
+
 static mad::log_printer logger{ "console" };
 
 static void
@@ -19,8 +25,41 @@ client_on_disconnected([[maybe_unused]] void * uctx,
 [[maybe_unused]] static std::size_t
 client_stream_data_received([[maybe_unused]] void * uctx,
                             std::span<const std::uint8_t> buf) {
-    MAD_LOG_INFO_I(logger, "app_stream_data_received: received {} byte(s)",
-                   buf.size_bytes());
+
+    ::flatbuffers::Verifier vrf{ buf.data(), buf.size() };
+    if (!mad::schemas::VerifyEnvelopeBuffer(vrf)) {
+        MAD_LOG_ERROR_I(logger, "app_stream_data_received: corrupt data!");
+        return 0;
+    }
+
+    auto envelope = mad::schemas::GetEnvelope(buf.data());
+
+    switch (envelope->message_type()) {
+        case mad::schemas::Message::Monster: {
+            auto v = envelope->message_as_Monster();
+
+            assert(v->hp() == 120);
+            assert(v->mana() == 80);
+            assert(v->name()->string_view() == "Deruvish");
+            MAD_LOG_INFO_I(logger,
+                           "app_stream_data_received: {} byte(s), received "
+                           "monster {} , hp:{} mana:{}",
+                           buf.size_bytes(), v->name()->c_str(), v->hp(),
+                           v->mana());
+
+        } break;
+        case mad::schemas::Message::Chat: {
+
+            auto v = envelope->message_as_Chat();
+            MAD_LOG_INFO_I(logger,
+                           "app_stream_data_received: {} byte(s), received "
+                           "chat timestamp {}",
+                           buf.size_bytes(), v->timestamp());
+            assert(v->timestamp() == 123456789);
+            assert(v->message()->string_view() == lorem_ipsum);
+        } break;
+    }
+
     return 0;
 }
 

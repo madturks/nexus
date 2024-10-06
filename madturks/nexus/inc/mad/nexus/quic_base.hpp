@@ -20,7 +20,6 @@ struct send_buffer {
     std::uint8_t * buf;
     std::size_t offset;
     std::size_t buf_size;
-    std::size_t used;
 };
 
 class quic_base {
@@ -92,15 +91,17 @@ public:
         stream_data_callback_t on_stream_data_received;
     } callbacks;
 
-    template <typename MT, typename F>
+    template <typename F>
     auto build_message(F && lambda) -> send_buffer {
         auto & fbb = get_message_builder();
-        MT msgt{ fbb };
-        lambda(msgt);
-        auto obj = msgt.Finish();
-        fbb.Finish(obj);
+        const std::uint32_t size_before = fbb.GetSize();
+        auto root_offset = lambda(fbb);
+        fbb.Finish(root_offset);
+        const std::uint32_t size_after = fbb.GetSize();
+        const std::uint32_t size = size_after - size_before;
+        fbb.PushBytes(reinterpret_cast<const std::uint8_t *>(&size),
+                      sizeof(std::uint32_t));
         mad::nexus::send_buffer buf{};
-        buf.used = fbb.GetSize();
         buf.buf = fbb.ReleaseRaw(buf.buf_size, buf.offset);
         return buf;
     }

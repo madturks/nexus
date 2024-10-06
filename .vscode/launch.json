@@ -1,0 +1,51 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "`msquic-test-server` [debug]",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/tgt/msquic-test-server",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb",
+        },
+        {
+            "name": "`msquic-test-client` [debug]",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/tgt/msquic-test-client",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb",
+        },
+        {
+            "name": "lldb `msquic-test-server` [debug]",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/tgt/msquic-test-server",
+        }
+    ]
+}

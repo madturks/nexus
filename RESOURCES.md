@@ -37,3 +37,8 @@ then navigate to: http://localhost:5001/
    support the ability to shuffle connections around to better balance the
    load.
 */
+
+export LTTNG_UST_DEBUG=1
+export LTTNG_UST_REGISTER_TIMEOUT=-1
+sudo apt-get install liblttng-ust-dev liblttng-ctl-dev
+
