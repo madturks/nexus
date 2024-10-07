@@ -138,7 +138,7 @@ TEST_CASE("Ensure it can handle multiple messages in a single buffer",
         auto msg{ encode_msg() };
         auto data_span{ msg.data_span() };
         // GCC does not support this
-        //storage.append_range(data_span);
+        // storage.append_range(data_span);
         storage.insert(storage.end(), data_span.begin(), data_span.end());
     }
 
