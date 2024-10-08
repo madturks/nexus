@@ -57,7 +57,7 @@ class msquicRecipe(ConanFile):
         if path.exists("src"):
             rmtree("src")
             
-        git = Git(self, "src")
+        git = Git(self)
         git.clone(url=self.url, target=".")
         git.checkout(commit=f"v{self.version}")
         git.run("submodule update --init --recursive")
