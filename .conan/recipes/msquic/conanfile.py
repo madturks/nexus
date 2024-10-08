@@ -44,6 +44,21 @@ class msquicRecipe(ConanFile):
 
     exports_sources = "src/*"
 
+    def requirements(self):
+        self.requires("libnuma/2.0.16")
+        self.requires("openssl/3.3.2")
+        self.requires("zstd/1.5.6")
+        self.requires("libelf/0.8.13")
+        # Don't have following packages in conan-center.
+        # self.requires("libz/4.8.12")
+
+        if self.options.use_xdp:
+            self.requires("libnl/3.9.0")
+            self.requires("libbpf/1.3.0")
+            # Don't have following packages in conan-center.
+            # self.requires("libnl-route/3.x.x")
+            # self.requires("libxdp/1.4.2")
+
     def config_options(self):
         if self.settings.os == "Windows":
             self.options.rm_safe("fPIC")
@@ -101,4 +116,3 @@ class msquicRecipe(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["msquic"]
-
