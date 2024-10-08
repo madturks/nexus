@@ -33,7 +33,7 @@ jobs:
         env:
           cache-name: cache-conan-packages
         with:
-          path: /root/.conan2/p
+          path: ~/.conan2/p
           key: ${{ runner.os }}-${{ matrix.meson_config }}-${{ hashFiles('.conan/recipes/msquic/conanfile.py') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.meson_config }}-
