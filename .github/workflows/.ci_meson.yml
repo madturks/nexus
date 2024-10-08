@@ -27,6 +27,26 @@ jobs:
           # Let's read the packages from devcontainer.json file.
           python -m pip install $(sed 's,//.*,,g' .devcontainer/devcontainer.json  | jq -r '.features["ghcr.io/deep-space-cartel/devcontainers-features/pip:1"].packages')
           sudo apt install -y $(sed 's,//.*,,g' .devcontainer/devcontainer.json  | jq -r '.features["ghcr.io/deep-space-cartel/devcontainers-features/apt:1"].packages')
+      - name: Cache Conan Packages
+        id: cache-conan
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-conan-packages
+        with:
+          path: ~/.conan2/p
+          key: ${{ runner.os }}-${{ matrix.meson_config }}-${{ hashFiles('.conan/recipes/msquic/conanfile.py') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.meson_config }}-
+            ${{ runner.os }}-
+
+      - if: ${{ steps.cache-conan.outputs.cache-hit != 'true' }}
+        name: Export Custom Conan Recipes
+        run: |
+          conan source .conan/recipes/msquic
+          conan install .conan/recipes/msquic --profile:all=.config/conan-profiles/${{ matrix.meson_config }}
+          conan build .conan/recipes/msquic --profile:all=.config/conan-profiles/${{ matrix.meson_config }}
+          conan export-pkg .conan/recipes/msquic --profile:all=.config/conan-profiles/${{ matrix.meson_config }}
+
       - name: Configure Project
         run: meson setup tgt --wipe --native-file=.config/meson-${{ matrix.meson_config }}
         env:
@@ -39,10 +59,10 @@ jobs:
           path: tgt/meson-logs/meson-log.txt
       - name: Build Project
         run: meson compile -C tgt
-      - name: Run Tests # TODO: Move this to a separate job and add upload build artifacts here 
-        run: meson test -C tgt -v
       - name: Check format
         run: ninja -C tgt clang-format-check
+      - name: Run Tests # TODO: Move this to a separate job and add upload build artifacts here 
+        run: meson test -C tgt -v
       - name: Upload Test Log
         uses: actions/upload-artifact@v4
         if: failure()
