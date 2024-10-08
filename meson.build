@@ -76,6 +76,7 @@ fmt = dependency('fmt', include_type: 'system')
 gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
+msquic = dependency('msquic', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
 catch2 = dependency('catch2-with-main', include_type: 'system')
 
@@ -111,30 +112,6 @@ fbs_schemas = declare_dependency(
     
 )
 
-# msquic is a vendored library, and we have to declare it manually since it
-# does not have a pkg-config file.
-msquic = declare_dependency(
-    dependencies: [
-        compiler.find_library(
-            'msquic',
-            dirs: meson.project_source_root() + '/vendor/msquic/2.4.4/bin',
-            has_headers: [
-                'msquic.h',
-                'msquic_posix.h',
-                'quic_sal_stub.h',
-                'msquic.hpp',
-                'msquicp.h',
-            ],
-            header_include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),
-            required: true,
-        ),
-    ],
-    include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),
-    version: '2.4.4',
-    compile_args: '-DQUIC_API_ENABLE_PREVIEW_FEATURES=1',
-)
-
-subdir('madturks/core/macro')
 subdir('madturks/core/meta')
 subdir('madturks/core/concept')
 subdir('madturks/core/random')
