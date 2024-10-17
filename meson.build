@@ -37,6 +37,7 @@ clang_compiler_flags = [
     '-Wno-documentation-unknown-command',
     '-Wno-reserved-identifier',
     '-Wno-global-constructors',
+    '-Wno-switch-enum',
     # Use absolute file paths on diagnostic messages.
     '-fdiagnostics-absolute-paths',
 ]
@@ -77,7 +78,6 @@ gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
-catch2 = dependency('catch2-with-main', include_type: 'system')
 
 # retrieve the path to the flatbuffers schema compiler
 flatbuffers_bindir = flatbuffers.get_variable('bindir')

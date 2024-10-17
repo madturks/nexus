@@ -43,10 +43,10 @@ static auto spdlog_default_logger() {
 
 namespace mad {
 
-log_printer::log_printer(std::string_view logger_name) :
-    log_printer::log_printer(spdlog_get_logger(logger_name)) {}
+log_printer::log_printer(std::string_view logger_name, log_level level) :
+    log_printer::log_printer(spdlog_get_logger(logger_name), level) {}
 
-log_printer::log_printer(std::shared_ptr<void> logger) {
+log_printer::log_printer(std::shared_ptr<void> logger, log_level level) {
     if (logger_instance = logger; nullptr == logger_instance) {
         // (mgilor): We cannot use default logger as a fallback since
         // spdlog::default_logger() lives in this library's address space
@@ -57,6 +57,7 @@ log_printer::log_printer(std::shared_ptr<void> logger) {
         logger_instance = spdlog_default_logger();
     }
     assert(logger_instance);
+    set_log_level(level);
     // Save current log level
     current_level = static_cast<log_level>(
         static_cast<spdlog::logger *>(logger_instance.get())->level());

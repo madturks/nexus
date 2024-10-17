@@ -58,6 +58,9 @@ client_stream_data_received([[maybe_unused]] void * uctx,
             assert(v->timestamp() == 123456789);
             assert(v->message()->string_view() == lorem_ipsum);
         } break;
+        case mad::schemas::Message::NONE: {
+            assert(0);
+        } break;
     }
 
     return 0;

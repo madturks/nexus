@@ -17,4 +17,3 @@ class Nexus(ConanFile):
     def build_requirements(self):
         self.test_requires("gtest/1.15.0")
         self.test_requires("benchmark/1.9.0")
-        self.test_requires("catch2/3.7.1")

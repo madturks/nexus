@@ -18,12 +18,8 @@
 namespace mad::nexus {
 
 static mad::log_printer & stream_logger() {
-    static auto sl = [] {
-        static mad::log_printer stream_logger{ "quic-stream" };
-        stream_logger.set_log_level(mad::log_level::debug);
-        return stream_logger;
-    }();
-    return sl;
+    static log_printer stream_logger{ "quic-stream", log_level::debug };
+    return stream_logger;
 }
 
 using send_complete_event = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
@@ -79,8 +75,8 @@ constexpr std::string_view quic_stream_event_to_str(int etype) {
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackSendComplete(
-    [[maybe_unused]] stream_context & sctx, send_complete_event & event) {
+QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream_context & sctx,
+                                       send_complete_event & event) {
     //
     // A previous StreamSend call has completed, and the context is
     // being returned back to the app.
@@ -111,24 +107,24 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
     MAD_EXPECTS(sctx.on_data_received);
     MAD_EXPECTS(event.BufferCount > 0);
     MAD_EXPECTS(event.TotalBufferLength > 0);
+    auto & receive_buffer = sctx.rbuf();
 
     std::size_t buffer_offset = 0;
 
     // FIXME: Optimize this.
     for (std::uint32_t buffer_idx = 0; buffer_idx < event.BufferCount;) {
 
-        const auto & buffer = event.Buffers [buffer_idx];
+        const auto & received_data = event.Buffers [buffer_idx];
 
         const auto pull_amount = std::min(
-            sctx.rbuf().empty_space(),
-            static_cast<std::size_t>(buffer.Length - buffer_offset));
+            receive_buffer.empty_space(),
+            static_cast<std::size_t>(received_data.Length - buffer_offset));
 
         MAD_LOG_DEBUG_I(stream_logger(),
                         "Pulled {} byte(s) into the receive buffer (rb "
                         "allocation size: {})",
-                        pull_amount, sctx.rbuf().total_size());
+                        pull_amount, receive_buffer.total_size());
 
-        // assert(pull_amount > 0);
         if (pull_amount == 0) {
             MAD_LOG_ERROR_I(
                 stream_logger(), "No empty space left in the receive buffer!");
@@ -137,15 +133,17 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
             // Probably corrupt message, disconnect and break
             break;
         }
-        assert(sctx.rbuf().put(buffer.Buffer + buffer_offset, pull_amount));
+        [[maybe_unused]] auto pull_r = receive_buffer.put(
+            received_data.Buffer + buffer_offset, pull_amount);
+        MAD_ASSERT(pull_r);
         buffer_offset += pull_amount;
 
         std::uint32_t push_payload_cnt = 0;
 
         // Deliver all complete messages to the app layer
-        for (auto available_span = sctx.rbuf().available_span();
+        for (auto available_span = receive_buffer.available_span();
              available_span.size_bytes() >= sizeof(std::uint32_t);
-             available_span = sctx.rbuf().available_span()) {
+             available_span = receive_buffer.available_span()) {
             // Read the size of the message
             auto size = *reinterpret_cast<const std::uint32_t *>(
                 available_span.data());
@@ -166,8 +164,8 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
                 MAD_LOG_DEBUG_I(
                     stream_logger(), "Push payload count {}", push_payload_cnt);
 
-                sctx.rbuf().mark_as_read(sizeof(std::uint32_t) +
-                                         message.size_bytes());
+                receive_buffer.mark_as_read(sizeof(std::uint32_t) +
+                                            message.size_bytes());
                 continue;
             }
             MAD_LOG_DEBUG_I(
@@ -178,8 +176,7 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
             break;
         }
 
-        // Not sure about this
-        if (buffer_offset == buffer.Length) {
+        if (buffer_offset == received_data.Length) {
             buffer_idx++;
             buffer_offset = 0;
             MAD_LOG_DEBUG_I(
@@ -191,7 +188,7 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
                     "Processed {} buffers in grand total of {} byte(s). "
                     "Receive buffer has {} byte(s) inside.",
                     event.BufferCount, event.TotalBufferLength,
-                    sctx.rbuf().consumed_space());
+                    receive_buffer.consumed_space());
     return QUIC_STATUS_SUCCESS;
 }
 
@@ -278,9 +275,9 @@ auto msquic_base::open_stream(
 
     HQUIC new_stream = nullptr;
 
-    if (auto status = MsQuic->StreamOpen(
-            static_cast<HQUIC>(cctx.connection_handle),
-            QUIC_STREAM_OPEN_FLAG_NONE, StreamCallback, nullptr, &new_stream);
+    if (auto status = MsQuic->StreamOpen(cctx.handle_as<HQUIC>(),
+                                         QUIC_STREAM_OPEN_FLAG_NONE,
+                                         StreamCallback, nullptr, &new_stream);
         QUIC_FAILED(status)) {
         MAD_LOG_ERROR("stream open failed with {}", status);
         return std::unexpected(quic_error_code::stream_open_failed);
