@@ -51,6 +51,8 @@ std::string quic_error_code_category::message(int condition) const {
             return "Stream insert to map failed.";
         case stream_already_exists:
             return "Stream already exists.";
+        case stream_does_not_exist:
+            return "Stream does not exist.";
         case connection_start_failed:
             return "Connection start failed.";
         case connection_initialization_failed:

@@ -11,6 +11,7 @@ class Nexus(ConanFile):
         self.requires("fmt/11.0.2", override=True)
         self.requires("flatbuffers/24.3.25")
         self.requires("stduuid/1.2.3")
+        self.requires("cxxopts/3.2.0")
         #self.requires("abseil/20240722.0")
         
 

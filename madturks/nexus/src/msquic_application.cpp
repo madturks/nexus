@@ -8,7 +8,43 @@
 #include <filesystem>
 #include <memory>
 
+/**
+ * The global MSQUIC api object, used by the MSQUIC C++
+ * API, and nexus MSQUIC based implementation.
+ */
+const MsQuicApi * MsQuic;
+
 namespace {
+
+/**
+ * Wrapper type for automatically managing the lifetime
+ * of the global MsQuic API object.
+ *
+ * This struct is intended to be used in junction with
+ * shared_ptr/weak_ptr's to tie the lifetime to different
+ * instances of the msquic_application.
+ */
+struct msquic_auto_init {
+    msquic_auto_init() {
+        MAD_EXPECTS(nullptr == MsQuic);
+        MsQuic = new (std::nothrow) MsQuicApi();
+        MAD_ENSURES(nullptr != MsQuic);
+    }
+
+    ~msquic_auto_init() {
+        MAD_EXPECTS(nullptr != MsQuic);
+        delete MsQuic;
+        MsQuic = nullptr;
+        MAD_ENSURES(nullptr == MsQuic);
+    }
+};
+
+/**
+ * This is a weak pointer to hold a reference to msquic_auto_init
+ * object if it's already been initialized.
+ */
+static std::weak_ptr<void> auto_init_obj;
+
 MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     MsQuicSettings settings{};
 
@@ -22,13 +58,11 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     // 0-RTT.
     settings.SetServerResumptionLevel(QUIC_SERVER_RESUME_AND_ZERORTT);
     settings.SetSendBufferingEnabled(false);
-    // Configures the server's settings to allow for the peer to open a single
-    // bidirectional stream. By default connections are not configured to allow
-    // any streams from the peer.
+    // Configures the server's settings to allow for the peer to open a
+    // single bidirectional stream. By default connections are not
+    // configured to allow any streams from the peer.
     settings.SetPeerBidiStreamCount(1);
     settings.SetStreamRecvWindowDefault(cfg.stream_receive_window);
-
-    // settings.SetStreamRecvWindowDefault(uint32_t Value)
 
     return settings;
 }
@@ -44,32 +78,81 @@ msquic_application::msquic_application(const quic_configuration & cfg) :
     quic_application(cfg) {
     MAD_EXPECTS(!cfg.appname.empty());
     MAD_EXPECTS(!cfg.alpn.empty());
-    MAD_EXPECTS(std::filesystem::exists(cfg.credentials.certificate_path));
-    MAD_EXPECTS(std::filesystem::exists(cfg.credentials.private_key_path));
 
-    registration_ptr = std::make_shared<MsQuicRegistration>(
-        cfg.appname.c_str(), QUIC_EXECUTION_PROFILE_LOW_LATENCY, true);
+    // MSQUIC API init
+    {
+        /**
+         * Check if the MsQuic API has been initialized already.
+         *
+         * If so, the weak_ptr would return the shared_ptr to the
+         * existing msquic_auto_init object, which effectively increases
+         * the reference count by one. Otherwise, a new one is created
+         * from scratch and set to the weak_ptr as well.
+         */
+        api_ptr = auto_init_obj.lock();
+        if (nullptr == api_ptr) {
+            api_ptr = std::make_shared<msquic_auto_init>();
+            auto_init_obj = api_ptr;
+        }
 
-    MsQuicAlpn alpn{ cfg.alpn.c_str() };
+        MAD_ENSURES(nullptr != api_ptr);
+        MAD_ENSURES(!auto_init_obj.expired());
+    }
 
-    QUIC_CERTIFICATE_FILE certificate;
-    certificate.CertificateFile = cfg.credentials.certificate_path.c_str();
-    certificate.PrivateKeyFile = cfg.credentials.private_key_path.c_str();
+    // Registration object init
+    {
+        registration_ptr = std::make_shared<MsQuicRegistration>(
+            cfg.appname.c_str(), QUIC_EXECUTION_PROFILE_LOW_LATENCY, true);
 
-    QUIC_CREDENTIAL_CONFIG credential_config;
-    credential_config.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
-    credential_config.CertificateFile = &certificate;
+        MAD_ENSURES(registration_ptr);
+        MAD_ENSURES(registration_ptr->IsValid());
+    }
 
-    MsQuicCredentialConfig cred_cfg{ credential_config };
-    auto msquic_cfg = settings_to_msquic(cfg);
+    // Configuration init
+    {
+        MsQuicAlpn alpn{ cfg.alpn.c_str() };
 
-    configuration_ptr = std::make_shared<MsQuicConfiguration>(
-        *registration_ptr.get(), alpn, msquic_cfg, credential_config);
+        QUIC_CREDENTIAL_CONFIG credential_config = {};
+        QUIC_CERTIFICATE_FILE certificate = {};
+        MAD_ENSURES(credential_config.Reserved == nullptr);
 
-    MAD_ENSURES(registration_ptr->IsValid());
-    MAD_ENSURES(configuration_ptr->IsValid());
-    MAD_ENSURES(registration_ptr);
-    MAD_ENSURES(configuration_ptr);
+        /**
+         * Currently, we don't expect client to provide a certificate
+         * but the server do need it.
+         */
+        MAD_EXHAUSTIVE_SWITCH_BEGIN
+        switch (cfg.role()) {
+            case e_role::client: {
+                credential_config.Type = QUIC_CREDENTIAL_TYPE_NONE;
+                credential_config.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
+                // FIXME: Remove this later on.
+                credential_config.Flags |=
+                    QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
+            } break;
+            case e_role::server: {
+                MAD_EXPECTS(
+                    std::filesystem::exists(cfg.credentials.certificate_path));
+                MAD_EXPECTS(
+                    std::filesystem::exists(cfg.credentials.private_key_path));
+                certificate.CertificateFile =
+                    cfg.credentials.certificate_path.c_str();
+                certificate.PrivateKeyFile =
+                    cfg.credentials.private_key_path.c_str();
+                credential_config.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+                credential_config.CertificateFile = &certificate;
+            } break;
+        }
+        MAD_EXHAUSTIVE_SWITCH_END
+
+        MsQuicCredentialConfig cred_cfg{ credential_config };
+        auto msquic_cfg = settings_to_msquic(cfg);
+
+        configuration_ptr = std::make_shared<MsQuicConfiguration>(
+            *registration_ptr.get(), alpn, msquic_cfg, credential_config);
+
+        MAD_ENSURES(configuration_ptr);
+        MAD_ENSURES(configuration_ptr->IsValid());
+    }
 }
 
 msquic_application::~msquic_application() = default;

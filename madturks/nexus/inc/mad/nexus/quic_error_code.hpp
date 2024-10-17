@@ -23,6 +23,7 @@ enum class quic_error_code : std::int32_t
     stream_start_failed,
     stream_emplace_failed,
     stream_already_exists,
+    stream_does_not_exist,
     connection_initialization_failed,
     connection_start_failed
 };

@@ -5,15 +5,14 @@
 #include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/schemas/chat_generated.h>
+#include <mad/nexus/schemas/main_generated.h>
+#include <mad/nexus/schemas/monster_generated.h>
 #include <mad/random_string.hpp>
 
 #include <flatbuffers/flatbuffer_builder.h>
 #include <gtest/gtest.h>
 #include <msquic.hpp>
-
-#include <fbs-schemas/chat_generated.h>
-#include <fbs-schemas/main_generated.h>
-#include <fbs-schemas/monster_generated.h>
 
 auto encode_monster_msg() {
     static auto validator =

@@ -10,9 +10,6 @@
 #include <msquic.hpp>
 
 #include <bit>
-#include <iomanip>
-#include <iostream>
-#include <thread>
 #include <utility>
 
 namespace mad::nexus {
@@ -22,9 +19,12 @@ static mad::log_printer & stream_logger() {
     return stream_logger;
 }
 
-using send_complete_event = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
-using receive_event = decltype(QUIC_STREAM_EVENT::RECEIVE);
-using shutdown_complete_event = decltype(QUIC_STREAM_EVENT::SHUTDOWN_COMPLETE);
+struct events {
+    using send_complete = decltype(QUIC_STREAM_EVENT::SEND_COMPLETE);
+    using receive = decltype(QUIC_STREAM_EVENT::RECEIVE);
+    using shutdown_complete = decltype(QUIC_STREAM_EVENT::SHUTDOWN_COMPLETE);
+    using start_complete = decltype(QUIC_STREAM_EVENT::START_COMPLETE);
+};
 
 /**
  * @brief Quic stream event type to string conversion
@@ -76,7 +76,7 @@ constexpr std::string_view quic_stream_event_to_str(int etype) {
  * @return QUIC_STATUS Return code indicating callback result
  */
 QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream_context & sctx,
-                                       send_complete_event & event) {
+                                       events::send_complete & event) {
     //
     // A previous StreamSend call has completed, and the context is
     // being returned back to the app.
@@ -102,7 +102,7 @@ QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream_context & sctx,
  * @return QUIC_STATUS Return code indicating callback result
  */
 QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
-                                  receive_event & event) {
+                                  events::receive & event) {
 
     MAD_EXPECTS(sctx.on_data_received);
     MAD_EXPECTS(event.BufferCount > 0);
@@ -203,9 +203,16 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
  * @return QUIC_STATUS Return code indicating callback result
  */
 MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
-    stream_context & sctx, [[maybe_unused]] shutdown_complete_event & event)
+    stream_context & sctx, [[maybe_unused]] events::shutdown_complete & event)
 
 {
+    if (event.AppCloseInProgress) {
+        // If we initiated this
+        return QUIC_STATUS_SUCCESS;
+    }
+
+    MAD_LOG_DEBUG_I(stream_logger(), "StreamCallbackShutdownComplete called {}",
+                    event.AppCloseInProgress == true);
     return sctx.connection()
         .remove_stream(sctx.stream())
         .and_then([&](auto &&) {
@@ -214,6 +221,34 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
             return std::optional{ QUIC_STATUS_SUCCESS };
         })
         .value_or(QUIC_STATUS_SUCCESS);
+}
+
+/**
+ * @brief Callback function for stream shutdown.
+ *
+ * It is called when a stream is completely closed and being destructed.
+ *
+ * @param sctx The stream context of the shutdown stream
+ * @param event Shutdown complete event details
+ *
+ * @return QUIC_STATUS Return code indicating callback result
+ */
+MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackStartComplete(
+    stream_context & sctx, events::start_complete & event)
+
+{
+    if (QUIC_FAILED(event.Status)) {
+        return sctx.connection()
+            .remove_stream(sctx.stream())
+            .and_then([&](auto &&) {
+                MAD_LOG_DEBUG_I(
+                    stream_logger(), "stream erased from connection map");
+                return std::optional{ QUIC_STATUS_SUCCESS };
+            })
+            .value_or(QUIC_STATUS_SUCCESS);
+    }
+
+    return QUIC_STATUS_SUCCESS;
 }
 
 /**
@@ -247,6 +282,8 @@ QUIC_STATUS StreamCallback(HQUIC stream, void * context,
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
             return StreamCallbackShutdownComplete(
                 sctx, event->SHUTDOWN_COMPLETE);
+        case QUIC_STREAM_EVENT_START_COMPLETE:
+            return StreamCallbackStartComplete(sctx, event->START_COMPLETE);
         default: {
             MAD_LOG_WARN_I(stream_logger(), "Unhandled stream event: {} {}",
                            std::to_underlying(event->Type),
@@ -301,19 +338,30 @@ auto msquic_base::open_stream(
             if (QUIC_FAILED(MsQuic->StreamStart(
                     static_cast<HQUIC>(v.get().stream()),
                     QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL))) {
-                // TODO: Check if it triggers a stream shutdown event
-                // cctx->streams.erase(itr);?
+
+                // This function starts the processing of the stream by the
+                // connection. Once called, the stream can start receiving
+                // events to the handler passed into StreamOpen. If the start
+                // operation fails, the only event that will be delivered is
+                // QUIC_STREAM_EVENT_START_COMPLETE with the failure status
+                // code.
+
                 return std::unexpected(quic_error_code::stream_start_failed);
             }
             return std::move(v);
         });
 }
 
-auto msquic_base::close_stream([[maybe_unused]] stream_context & sctx)
-    -> std::error_code {
+auto msquic_base::close_stream(stream_context & sctx) -> std::error_code {
 
-    // FIXME: Implement this
-    return quic_error_code::success;
+    return sctx.connection()
+        .remove_stream(sctx.stream())
+        .and_then([&](auto &&) {
+            MAD_LOG_DEBUG_I(
+                stream_logger(), "stream erased from connection map");
+            return std::optional{ quic_error_code::success };
+        })
+        .value_or(quic_error_code::stream_does_not_exist);
 }
 
 auto msquic_base::send(stream_context & sctx,

@@ -16,8 +16,7 @@ project(
 
 # Project-level macro definitions goes here
 add_project_arguments('-DFMT_HEADER_ONLY=1', language: 'cpp')
-
-# add_project_arguments('', language:'cpp')
+add_project_arguments('-DCXXOPTS_NO_RTTI=1', language: 'cpp')
 
 compiler = meson.get_compiler('cpp')
 
@@ -79,37 +78,6 @@ gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
 
-# retrieve the path to the flatbuffers schema compiler
-flatbuffers_bindir = flatbuffers.get_variable('bindir')
-flatc_compiler = files(flatbuffers_bindir + '/flatc')
-meson.override_find_program('flatc', flatc_compiler)
-flatc = find_program('flatc')
-
-fbs_schemas = [
-    'sample/flatbuffers_schemas/main.fbs',
-    'sample/flatbuffers_schemas/chat.fbs',
-    'sample/flatbuffers_schemas/monster.fbs',
-]
-
-# Compile the flatbuffers schemas.
-run_command(
-    flatc.full_path(),
-    '--cpp',
-    '--scoped-enums',
-    '-o', '@0@/fbs-schemas/include/fbs-schemas'.format(meson.current_build_dir()),
-
-    fbs_schemas,
-    # capnp compile needs to locate `capnpc-c++` plugin
-    # so set the PATH environment variable.
-    env: {'PATH': flatbuffers_bindir},
-    check: true,
-)
-
-# Define a target to the schemas.
-fbs_schemas = declare_dependency(
-    include_directories: include_directories('tgt/fbs-schemas/include', is_system: true),
-    
-)
 
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.
@@ -134,6 +102,7 @@ msquic = declare_dependency(
     compile_args: '-DQUIC_API_ENABLE_PREVIEW_FEATURES=1',
 )
 
+subdir('schemas')
 subdir('madturks/core/macro')
 subdir('madturks/core/meta')
 subdir('madturks/core/concept')
@@ -143,15 +112,4 @@ subdir('madturks/core/concurrency')
 subdir('madturks/core/temputils')
 subdir('madturks/core/log')
 subdir('madturks/nexus')
-
-executable(
-    'msquic-test-server',
-    'sample/src/msquic_test_server.cpp',
-    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
-)
-
-executable(
-    'msquic-test-client',
-    'sample/src/msquic_test_client.cpp',
-    dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas],
-)
+subdir('sample')
