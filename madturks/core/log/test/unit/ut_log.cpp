@@ -91,7 +91,8 @@ INSTANTIATE_TEST_SUITE_P(
                       mad::log_level::error, mad::log_level::critical));
 
 TEST(log_printer, default_logger) {
-    mad::log_printer def{ std::shared_ptr<void>(nullptr) };
+    mad::log_printer def{ std::shared_ptr<void>(nullptr),
+                          mad::log_level::debug };
     ASSERT_NO_THROW(def.set_log_level(mad::log_level::info));
     ASSERT_NO_THROW(def.log_info<>("aa"));
     ASSERT_NO_THROW(def.log_info<>("aa"));

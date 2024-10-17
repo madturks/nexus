@@ -10,14 +10,20 @@
 
 namespace mad::nexus {
 struct connection_context {
-    using connection_handle_t = void *;
-
     using stream_handle_t = std::shared_ptr<void>;
     using stream_map_t =
         std::unordered_map<stream_handle_t, stream_context, shared_ptr_raw_hash,
                            shared_ptr_raw_equal>;
     using add_stream_result_t =
         std::expected<std::reference_wrapper<stream_context>, std::error_code>;
+    using remove_stream_result_t = std::optional<stream_map_t::node_type>;
+
+    /**
+     * Construct a new connection context object
+     *
+     * @param handle Connection handle
+     */
+    connection_context(void * handle) : connection_handle(handle) {}
 
     /**
     * Add a new connection to the connection map.
@@ -50,8 +56,15 @@ struct connection_context {
         return emplaced_itr->second;
     }
 
-    auto remove_stream(void * stream_handle)
-        -> std::optional<stream_map_t::node_type> {
+    /**
+     * Remove a stream from the stream map
+     *
+     * @param stream_handle Stream handle
+     * @return Extracted node from the stream map. std::nullopt if no such
+     * stream exists.
+     */
+    [[nodiscard]] auto
+    remove_stream(void * stream_handle) -> remove_stream_result_t {
         auto present = streams.find(stream_handle);
 
         if (streams.end() == present) {
@@ -64,7 +77,13 @@ struct connection_context {
         return streams.extract(present);
     }
 
-    connection_handle_t connection_handle;
+    template <typename T = void *>
+    [[nodiscard]] T handle_as() const {
+        return static_cast<T>(connection_handle);
+    }
+
+private:
+    void * connection_handle;
     /**
      * Enable lookup by raw pointer.
      */

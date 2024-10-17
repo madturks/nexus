@@ -55,7 +55,8 @@ public:
      * instead.
      *
      */
-    log_printer(std::string_view logger_name);
+    log_printer(std::string_view logger_name,
+                log_level level = log_level::info);
 
     /**
      * @brief Initialize log printer with a logger
@@ -64,7 +65,13 @@ public:
      * will use default logger instead.
      *
      */
-    log_printer(std::shared_ptr<void> logger);
+    log_printer(std::shared_ptr<void> logger,
+                log_level level = log_level::info);
+
+    log_printer(const log_printer &) = default;
+    log_printer & operator=(const log_printer &) = default;
+    log_printer(log_printer &&) = default;
+    log_printer & operator=(log_printer &&) = default;
 
     /**
      * Destructor

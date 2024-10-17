@@ -67,7 +67,7 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventConnected(
     return server.add_new_connection(connection_shared_ptr)
         .and_then([&](auto && v) {
             MsQuic->ConnectionSendResumptionTicket(
-                static_cast<HQUIC>(v.get().connection_handle),
+                v.get().template handle_as<HQUIC>(),
                 QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
             assert(server.callbacks.on_connected);
             // Notify app

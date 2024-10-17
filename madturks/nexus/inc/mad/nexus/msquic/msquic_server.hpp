@@ -54,7 +54,7 @@ public:
         }
 
         const auto & [emplaced_itr, emplace_status] = writer->emplace(
-            std::move(ptr), connection_context{ connection_handle, {} });
+            std::move(ptr), connection_context{ connection_handle });
 
         if (!emplace_status) {
             return std::nullopt;

@@ -1,7 +1,11 @@
 {
     "mesonbuild.configureOnOpen": false,
     "mesonbuild.buildFolder": "tgt",
-    "mesonbuild.configureOptions": ["--wipe", "--native-file=.config/meson-clang", "--buildtype=debug" ],
+    "mesonbuild.configureOptions": [
+        "--wipe",
+        "--native-file=.config/meson-clang",
+        "--buildtype=debug"
+    ],
     "mesonbuild.formatting.enabled": true,
     "mesonbuild.linting.enabled": true,
     "clangd.path": "clangd-18",
@@ -20,6 +24,10 @@
         "tgt/**": true,
         "vendor/**": true
     },
-    "C_Cpp.default.compileCommands": "/workspaces/nexus/tgt/compile_commands.json",
+    "C_Cpp.default.compileCommands": "/workspace/madturks/nexus/tgt/compile_commands.json",
     "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
+    "terminal.integrated.scrollback": 100000,
+    "debug.terminal.clearBeforeReusing": true,
+    "terminal.integrated.shellIntegration.enabled": true,
+    "terminal.integrated.stickyScroll.enabled": true
 }
