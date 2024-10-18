@@ -47,8 +47,7 @@ private:
      */
     msquic_application(const struct quic_configuration & cfg);
 
-    // TODO: API should go here as well.
-    // TODO: Allow dependency injection for testing
+    std::shared_ptr<void> api_ptr;
 
     // The MSQUIC registration object.
     std::shared_ptr<MsQuicRegistration> registration_ptr;

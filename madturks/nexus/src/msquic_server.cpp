@@ -94,6 +94,10 @@ static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventShutdownCompleted(
     HQUIC connection, [[maybe_unused]] const shutdown_complete_event & event,
     server & server) {
 
+    if (event.AppCloseInProgress) {
+        return QUIC_STATUS_SUCCESS;
+    }
+
     return server.remove_connection(connection)
         .and_then([&](auto && v) {
             server.callbacks.on_disconnected(v.mapped());

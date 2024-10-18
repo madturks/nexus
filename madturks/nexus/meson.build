@@ -10,7 +10,6 @@ nexus = declare_dependency(
             'src/msquic_base.cpp',
             'src/msquic_server.cpp',
             'src/msquic_client.cpp',
-            'src/msquic_api_object.cpp',
             'src/msquic_application.cpp',
             'src/quic_error_code.cpp',
         ],

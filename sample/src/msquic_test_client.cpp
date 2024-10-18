@@ -4,10 +4,11 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_error_code.hpp>
+#include <mad/nexus/schemas/chat_generated.h>
+#include <mad/nexus/schemas/main_generated.h>
+#include <mad/nexus/schemas/monster_generated.h>
 
-#include <fbs-schemas/chat_generated.h>
-#include <fbs-schemas/main_generated.h>
-#include <fbs-schemas/monster_generated.h>
+#include <cxxopts.hpp>
 
 #include "lorem_ipsum.hpp"
 
@@ -66,15 +67,48 @@ client_stream_data_received([[maybe_unused]] void * uctx,
     return 0;
 }
 
-int main(void) {
+int main(int argc, char * argv []) {
     MAD_LOG_INFO_I(logger, "{}", __cplusplus);
 
-    mad::nexus::quic_configuration cfg;
+    cxxopts::ParseResult parsed_options{};
+
+    try {
+        // Create options parser object
+        cxxopts::Options options(
+            "msquic-test-client",
+            "Sample client application demonstrating usage of nexus.");
+
+        // Define options
+        options.add_options()("c,cert", "Certificate file path",
+                              cxxopts::value<std::string>()->default_value(
+                                  "/workspaces/nexus/vendor/msquic/test-cert/"
+                                  "server.cert")) // Certificate file path
+            ("k,key", "Private key file path",
+             cxxopts::value<std::string>()->default_value(
+                 "/workspaces/nexus/vendor/msquic/test-cert/"
+                 "server.key"))        // Private key file path
+            ("h,help", "Print usage"); // Help option
+
+        // Parse command-line arguments
+        parsed_options = options.parse(argc, argv);
+
+        // Handle help option
+        if (parsed_options.count("help")) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
+    }
+    catch (const std::exception & e) {
+        std::cerr << "Error parsing options: " << e.what() << std::endl;
+        return 1;
+    }
+
+    mad::nexus::quic_configuration cfg{ mad::nexus::e_role::client };
     cfg.alpn = "test";
+
     cfg.credentials.certificate_path =
-        "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
-    cfg.credentials.private_key_path =
-        "/workspaces/nexus/vendor/msquic/test-cert/server.key";
+        parsed_options ["cert"].as<std::string>();
+    cfg.credentials.private_key_path = parsed_options ["key"].as<std::string>();
     cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
     cfg.udp_port_number = 6666;
 

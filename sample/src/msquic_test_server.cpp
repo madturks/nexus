@@ -5,7 +5,11 @@
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/schemas/chat_generated.h>
+#include <mad/nexus/schemas/main_generated.h>
+#include <mad/nexus/schemas/monster_generated.h>
 
+#include <cxxopts.hpp>
 #include <flatbuffers/default_allocator.h>
 #include <flatbuffers/detached_buffer.h>
 #include <flatbuffers/flatbuffer_builder.h>
@@ -17,9 +21,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
-#include <fbs-schemas/chat_generated.h>
-#include <fbs-schemas/main_generated.h>
-#include <fbs-schemas/monster_generated.h>
 #include <span>
 #include <thread>
 #include <unordered_map>
@@ -154,17 +155,49 @@ server_on_disconnected(void * uctx,
     streams.clear();
 }
 
-int main(void) {
+int main(int argc, char * argv []) {
     logger.set_log_level(mad::log_level::debug);
     MAD_LOG_INFO_I(logger, "{}", __cplusplus);
     stop.store(false);
 
-    mad::nexus::quic_configuration cfg;
+    cxxopts::ParseResult parsed_options{};
+
+    try {
+        // Create options parser object
+        cxxopts::Options options(
+            "msquic-test-server",
+            "Sample server application demonstrating usage of nexus.");
+
+        // Define options
+        options.add_options()("c,cert", "Certificate file path",
+                              cxxopts::value<std::string>()->default_value(
+                                  "/workspaces/nexus/vendor/msquic/test-cert/"
+                                  "server.cert")) // Certificate file path
+            ("k,key", "Private key file path",
+             cxxopts::value<std::string>()->default_value(
+                 "/workspaces/nexus/vendor/msquic/test-cert/"
+                 "server.key"))        // Private key file path
+            ("h,help", "Print usage"); // Help option
+
+        // Parse command-line arguments
+        parsed_options = options.parse(argc, argv);
+
+        // Handle help option
+        if (parsed_options.count("help")) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
+    }
+    catch (const std::exception & e) {
+        std::cerr << "Error parsing options: " << e.what() << std::endl;
+        return 1;
+    }
+
+    mad::nexus::quic_configuration cfg{ mad::nexus::e_role::server };
     cfg.alpn = "test";
     cfg.credentials.certificate_path =
-        "/workspaces/nexus/vendor/msquic/test-cert/server.cert";
-    cfg.credentials.private_key_path =
-        "/workspaces/nexus/vendor/msquic/test-cert/server.key";
+        parsed_options ["cert"].as<std::string>();
+    cfg.credentials.private_key_path = parsed_options ["key"].as<std::string>();
     cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
     cfg.udp_port_number = 6666;
 
@@ -195,4 +228,10 @@ int main(void) {
         logger, "QUIC server is listening for incoming connections.");
     MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
     getchar();
+    stop.store(true);
+    for (auto & thr : threads) {
+        thr.join();
+    }
+    threads.clear();
+    streams.clear();
 }
