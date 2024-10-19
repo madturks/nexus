@@ -15,7 +15,7 @@ namespace mad::nexus {
 QUIC_STATUS
 StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event);
 
-namespace {
+struct MsQuicClientCallbacks {
 
     /**
      * @brief Quic stream event type to string conversion
@@ -24,14 +24,15 @@ namespace {
      *
      * @return constexpr std::string_view The string representation
      */
-    constexpr std::string_view quic_connection_event_to_str(int etype) {
+    static constexpr std::string_view quic_connection_event_to_str(int etype) {
         MAD_EXHAUSTIVE_SWITCH_BEGIN
         switch (static_cast<QUIC_CONNECTION_EVENT_TYPE>(etype)) {
             using enum QUIC_CONNECTION_EVENT_TYPE;
             case QUIC_CONNECTION_EVENT_CONNECTED:
                 return "QUIC_CONNECTION_EVENT_CONNECTED";
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
-                return "QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT";
+                return "QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_"
+                       "TRANSPORT";
             case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
                 return "QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER";
             case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
@@ -92,20 +93,25 @@ namespace {
         assert(client.connection_ctx);
         auto new_stream = event.Stream;
 
+        stream_callbacks scbs = {
+            .on_start = client.callbacks.on_stream_start,
+            .on_close = client.callbacks.on_stream_close,
+            .on_data_received = client.callbacks.on_stream_data_received
+        };
+
         return client.connection_ctx
             ->add_new_stream({ new_stream,
                                [](void * sp) {
                                    MsQuic->StreamClose(static_cast<HQUIC>(sp));
                                } },
-                             client.callbacks.on_stream_data_received)
-            .and_then(
-                [&](auto && v) -> connection_context::add_stream_result_t {
-                    MAD_LOG_DEBUG_I(client, "Client peer stream started!");
-                    MsQuic->SetCallbackHandler(
-                        new_stream, reinterpret_cast<void *>(StreamCallback),
-                        static_cast<void *>(&v.get()));
-                    return std::move(v);
-                })
+                             scbs)
+            .and_then([&](auto && v) -> connection::add_stream_result_t {
+                MAD_LOG_DEBUG_I(client, "Client peer stream started!");
+                MsQuic->SetCallbackHandler(
+                    new_stream, reinterpret_cast<void *>(StreamCallback),
+                    static_cast<void *>(&v.get()));
+                return std::move(v);
+            })
             .transform([](auto &&) {
                 return QUIC_STATUS_SUCCESS;
             })
@@ -122,7 +128,7 @@ namespace {
      * @return QUIC_STATUS Return code indicating callback result
      */
     static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventConnected(
-        MsQuicConnection & connection, msquic_client & client,
+        MsQuicConnection & msquic_conn, msquic_client & client,
         const connected_event & event) {
 
         MAD_LOG_INFO_I(client,
@@ -131,8 +137,7 @@ namespace {
                        std::string_view{
                            reinterpret_cast<const char *>(event.NegotiatedAlpn),
                            event.NegotiatedAlpnLength });
-        client.connection_ctx = std::make_unique<connection_context>(
-            &connection);
+        client.connection_ctx = std::make_unique<connection>(&msquic_conn);
         assert(client.callbacks.on_connected);
         client.callbacks.on_connected(*(client.connection_ctx.get()));
 
@@ -142,7 +147,8 @@ namespace {
     /**
      * @brief Callback function for connection shutdown.
      *
-     * It is called when a connection is completely closed and being destructed.
+     * It is called when a connection is completely closed and being
+     * destructed.
      *
      * @param client msquic_client associated with the shutdown connection
      * @param event Shutdown complete event details
@@ -151,12 +157,13 @@ namespace {
      */
     static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventShutdownComplete(
         msquic_client & client, const shutdown_complete_event & event) {
-        MAD_LOG_DEBUG_I(
-            client,
-            "ClientConnectionEventShutdownComplete - HandshakeCompleted?:{} "
-            "PeerAckdShutdown?: {} AppCloseInProgress?: {}",
-            event.HandshakeCompleted, event.PeerAcknowledgedShutdown,
-            event.AppCloseInProgress);
+        MAD_LOG_DEBUG_I(client,
+                        "ClientConnectionEventShutdownComplete - "
+                        "HandshakeCompleted?:{} "
+                        "PeerAckdShutdown?: {} AppCloseInProgress?: {}",
+                        event.HandshakeCompleted,
+                        event.PeerAcknowledgedShutdown,
+                        event.AppCloseInProgress);
         // TODO: Invoke on_client_disconnect callback?
         if (client.connection_ctx) {
             client.callbacks.on_disconnected(*(client.connection_ctx.get()));
@@ -170,7 +177,8 @@ namespace {
      * @brief The client connection event callback dispatcher.
      *
      * @param connection The connection that is source of the event
-     * @param context The context associated with the connection (msquic_client)
+     * @param context The context associated with the connection
+     * (msquic_client)
      * @param event The event (what happened)
      *
      * @return QUIC_STATUS Return code indicating callback result
@@ -220,9 +228,8 @@ namespace {
                         MAD_LOG_DEBUG_I(client, "connection attempt timed out");
                     } break;
                 }
-                MAD_LOG_INFO_I(
-                    client,
-                    "ClientConnectionCallback - shutdown initiated by peer");
+                MAD_LOG_INFO_I(client, "ClientConnectionCallback - "
+                                       "shutdown initiated by peer");
                 return QUIC_STATUS_SUCCESS;
             }
 
@@ -244,7 +251,7 @@ namespace {
 
         return QUIC_STATUS_NOT_SUPPORTED;
     }
-} // namespace
+};
 
 msquic_client::msquic_client(const msquic_application & app) :
     msquic_base(), application(app) {}
@@ -256,7 +263,7 @@ std::error_code msquic_client::connect(std::string_view target,
 
     auto ptr = std::make_shared<MsQuicConnection>(
         application.registration(), MsQuicCleanUpMode::CleanUpManual,
-        ClientConnectionCallback, this);
+        &MsQuicClientCallbacks::ClientConnectionCallback, this);
 
     auto & connection = *reinterpret_cast<MsQuicConnection *>(ptr.get());
 

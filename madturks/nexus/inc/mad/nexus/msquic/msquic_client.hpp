@@ -10,12 +10,13 @@ namespace mad::nexus {
 class msquic_client final : public quic_client,
                             public msquic_base {
 public:
+    friend struct MsQuicClientCallbacks;
     virtual ~msquic_client() override;
 
     virtual std::error_code connect(std::string_view target,
                                     std::uint16_t port) override;
 
-    std::unique_ptr<connection_context> connection_ctx;
+    std::unique_ptr<connection> connection_ctx;
 
     const msquic_application & application;
 

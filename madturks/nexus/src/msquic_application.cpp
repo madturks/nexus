@@ -57,7 +57,7 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     // Configures the server's resumption level to allow for resumption and
     // 0-RTT.
     settings.SetServerResumptionLevel(QUIC_SERVER_RESUME_AND_ZERORTT);
-    settings.SetSendBufferingEnabled(false);
+    settings.SetSendBufferingEnabled(true);
     // Configures the server's settings to allow for the peer to open a
     // single bidirectional stream. By default connections are not
     // configured to allow any streams from the peer.

@@ -17,8 +17,10 @@ namespace mad::nexus {
 class msquic_server final : virtual public quic_server,
                             virtual public msquic_base {
 
+    friend struct MsQuicServerCallbacks;
+
     using connection_map_t =
-        std::unordered_map<std::shared_ptr<void>, connection_context,
+        std::unordered_map<std::shared_ptr<void>, connection,
                            shared_ptr_raw_hash, shared_ptr_raw_equal>;
 
     std::shared_ptr<void> listener_opaque;
@@ -41,7 +43,7 @@ public:
      * std::nullopt otherwise.
      */
     auto add_new_connection(std::shared_ptr<void> ptr)
-        -> std::optional<std::reference_wrapper<connection_context>> {
+        -> std::optional<std::reference_wrapper<connection>> {
 
         auto connection_handle = ptr.get();
         auto writer = connection_map.exclusive_access();
@@ -54,7 +56,7 @@ public:
         }
 
         const auto & [emplaced_itr, emplace_status] = writer->emplace(
-            std::move(ptr), connection_context{ connection_handle });
+            std::move(ptr), connection{ connection_handle });
 
         if (!emplace_status) {
             return std::nullopt;

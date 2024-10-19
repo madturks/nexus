@@ -39,6 +39,7 @@ clang_compiler_flags = [
     '-Wno-switch-enum',
     # Use absolute file paths on diagnostic messages.
     '-fdiagnostics-absolute-paths',
+    '-fexperimental-library',
 ]
 
 clang_linker_flags = ['-stdlib=libc++']
@@ -77,7 +78,6 @@ gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
-
 
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.

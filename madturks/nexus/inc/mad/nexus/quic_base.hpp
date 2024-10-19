@@ -5,6 +5,7 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/send_buffer.hpp>
 
 #include <flatbuffers/flatbuffer_builder.h>
 
@@ -13,99 +14,12 @@
 
 namespace mad::nexus {
 
-struct quic_connection {};
-
-struct quic_stream {};
-
-/**
- * It's flatbuffers::detachedbuffer but:
- *
- * - without a allocator
- * - with a toggle to control the deallocation
- *   on destruction
- *
- * @tparam AutoCleanup Whether to destroy the buffer
- * upon destruction or not.
- */
-template <bool AutoCleanup = true>
-struct send_buffer {
-    static constexpr std::size_t k_QuicBufStructSize = 16;
-    [[maybe_unused]] static constexpr auto k_QuicBufStructAlignment = 8;
-    /**
-     * Sentinel value used as a placeholder for QUIC_BUFFER's space
-     * until the real one is written.
-     */
-    [[maybe_unused]] constexpr static std::uint8_t
-        quic_buf_sentinel [k_QuicBufStructSize] = { 0xDE, 0xAD, 0xBE, 0xEF,
-                                                    0xBA, 0xAD, 0xC0, 0xDE,
-                                                    0xCA, 0xFE, 0xBA, 0xBE,
-                                                    0xDE, 0xAD, 0xFA, 0xCE };
-    std::uint8_t * buf{ nullptr };
-    std::size_t offset{ 0 };
-    std::size_t buf_size{ 0 };
-
-    send_buffer() {}
-
-    send_buffer(const send_buffer &) = delete;
-    send_buffer & operator=(const send_buffer &) = delete;
-    send_buffer & operator=(send_buffer &&) = delete;
-
-    auto size() const noexcept {
-        return buf_size - offset;
-    }
-
-    std::span<std::uint8_t> quic_buffer_span() noexcept {
-        MAD_EXPECTS(buf);
-        MAD_EXPECTS(buf_size >= k_QuicBufStructSize);
-        MAD_EXPECTS(size() >= k_QuicBufStructSize);
-        auto ptr{ buf + buf_size - k_QuicBufStructSize };
-        MAD_ENSURES(ptr >= buf && ptr <= (buf + buf_size));
-
-        MAD_ENSURES(0 == std::memcmp(ptr, quic_buf_sentinel,
-                                     sizeof(quic_buf_sentinel)));
-
-        return { ptr, k_QuicBufStructSize };
-    }
-
-    std::uint32_t encoded_data_size() const noexcept {
-        MAD_EXPECTS(size() >= sizeof(std::uint32_t));
-        return *reinterpret_cast<const std::uint32_t *>(buf + offset);
-    }
-
-    std::span<std::uint8_t> data_span() const noexcept {
-        MAD_EXPECTS(buf);
-        MAD_EXPECTS(offset <= buf_size);
-        MAD_EXPECTS(size() >= k_QuicBufStructSize);
-        auto ptr{ buf + offset };
-        auto sz{ size() - k_QuicBufStructSize };
-        MAD_ENSURES(ptr >= buf && ptr <= (buf + buf_size));
-        MAD_ENSURES(sz == encoded_data_size() + sizeof(std::uint32_t));
-        return { ptr, sz };
-    }
-
-    template <bool B>
-    send_buffer(send_buffer<B> && other) noexcept {
-        // There's no possibility of being the same object
-        // when the types are different for this class.
-        std::swap(buf, other.buf);
-        std::swap(offset, other.offset);
-        std::swap(buf_size, other.buf_size);
-    }
-
-    ~send_buffer() {
-        if (AutoCleanup) {
-            // Deallocating a nullptr is defined behavior.
-            ::flatbuffers::DefaultAllocator::dealloc(buf, buf_size);
-        }
-    }
-};
-
 class quic_base {
 public:
     using open_stream_result =
-        std::expected<std::reference_wrapper<stream_context>, std::error_code>;
+        std::expected<std::reference_wrapper<stream>, std::error_code>;
 
-    quic_base() {}
+    quic_base() = default;
 
     /**
      * Initialize the needed resources
@@ -124,7 +38,7 @@ public:
      * @return stream_context* when successful, std::error_code otherwise.
      */
     [[nodiscard]] virtual auto
-    open_stream(connection_context & cctx,
+    open_stream(connection & cctx,
                 std::optional<stream_data_callback_t> data_callback)
         -> open_stream_result = 0;
 
@@ -136,7 +50,7 @@ public:
      * @return std::error_code Error code indicating the close status.
      */
     [[nodiscard]] virtual auto
-    close_stream(stream_context & sctx) -> std::error_code = 0;
+    close_stream(stream & sctx) -> std::error_code = 0;
 
     /**
      * Send data to an already open stream
@@ -147,27 +61,54 @@ public:
      * @return std::size_t The amount of bytes successfully written to the send
      * buffer.
      */
-    [[nodiscard]] virtual auto send(stream_context & sctx,
+    [[nodiscard]] virtual auto send(stream & sctx,
                                     send_buffer<true> buf) -> std::size_t = 0;
 
     /**
-     * The callback functions for user application.
+     * Register a callback function for a specific event.
+     *
+     * @param args The callback function, and the user-defined context pointer
      */
-    struct callback_table {
-        /**
-         * Invoked when a new connection is established.
-         */
-        connection_callback_t on_connected;
-        /**
-         * Invoked when a connection is disconnected and about
-         * to be destroyed.
-         */
-        connection_callback_t on_disconnected;
-        /**
-         * Invoked when data is received from a stream.
-         */
-        stream_data_callback_t on_stream_data_received;
-    } callbacks;
+    template <callback_type T, typename... Args>
+    void register_callback(Args &&... args) noexcept {
+        decltype(auto) callback =
+            quic_callback_function{ std::forward<Args>(args)... };
+
+        if constexpr (T == callback_type::connected) {
+            static_assert(std::same_as<decltype(callback),
+                                       decltype(callbacks.on_connected)>,
+                          "Given callback function's signature does not match "
+                          "the target callback.");
+            callbacks.on_connected = callback;
+        } else if constexpr (T == callback_type::disconnected) {
+            static_assert(std::same_as<decltype(callback),
+                                       decltype(callbacks.on_disconnected)>,
+                          "Given callback function's signature does not match "
+                          "the target callback.");
+            callbacks.on_disconnected = callback;
+        } else if constexpr (T == callback_type::stream_start) {
+            static_assert(std::same_as<decltype(callback),
+                                       decltype(callbacks.on_stream_start)>,
+                          "Given callback function's signature does not match "
+                          "the target callback.");
+            callbacks.on_stream_start = callback;
+        } else if constexpr (T == callback_type::stream_end) {
+            static_assert(std::same_as<decltype(callback),
+                                       decltype(callbacks.on_stream_close)>,
+                          "Given callback function's signature does not match "
+                          "the target callback.");
+            callbacks.on_stream_close = callback;
+        } else if constexpr (T == callback_type::stream_data) {
+            static_assert(
+                std::same_as<decltype(callback),
+                             decltype(callbacks.on_stream_data_received)>,
+                "Given callback function's signature does not match the target "
+                "callback.");
+            callbacks.on_stream_data_received = callback;
+        } else if consteval {
+            static_assert(0, "Unhandled callback type");
+        }
+    }
 
     /**
      * Build a flatbuffers message for sending.
@@ -218,9 +159,41 @@ public:
         // Release the built message into a send_buffer
         send_buffer<true> buf{};
         buf.buf = fbb.ReleaseRaw(buf.buf_size, buf.offset);
+        fbb.Clear();
         return buf;
     }
 
     virtual ~quic_base();
+
+protected:
+    /**
+     * The callback functions for user application.
+     */
+    struct callback_table {
+        /**
+         * Invoked when a new connection is established.
+         */
+        connection_callback_t on_connected;
+        /**
+         * Invoked when a connection is disconnected and about
+         * to be destroyed.
+         */
+        connection_callback_t on_disconnected;
+
+        /**
+         * Invoked when a new stream is started.
+         */
+        stream_callback_t on_stream_start;
+
+        /**
+         * Invoked when a stream is about to be destroyed.
+         */
+        stream_callback_t on_stream_close;
+
+        /**
+         * Invoked when data is received from a stream.
+         */
+        stream_data_callback_t on_stream_data_received;
+    } callbacks;
 };
 } // namespace mad::nexus
