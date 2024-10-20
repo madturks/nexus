@@ -90,8 +90,7 @@ auto encode_chat_message(std::size_t how_large) {
 namespace mad::nexus {
 
 using receive_event = decltype(QUIC_STREAM_EVENT::RECEIVE);
-extern QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
-                                         receive_event & event);
+extern QUIC_STATUS StreamCallbackReceive(stream & sctx, receive_event & event);
 
 struct StreamCallback : public ::testing::Test {
 
@@ -103,9 +102,13 @@ struct StreamCallback : public ::testing::Test {
         std::size_t (*validator)(void *,
                                  std::span<const std::uint8_t>) = nullptr;
         std::size_t called_times;
-        stream_context sctx{
+        stream sctx{
             nullptr, message_object::cctx,
-            quic_callback_function{ validator, &called_times }
+            stream_callbacks{
+                             .on_start = {},
+                             .on_close = {},
+                             .on_data_received = quic_callback_function{ validator,
+                                                            &called_times } }
         };
 
         std::size_t total_length() const {
@@ -126,7 +129,7 @@ struct StreamCallback : public ::testing::Test {
         }
 
     private:
-        static inline connection_context cctx{ nullptr };
+        static inline connection cctx{ nullptr };
     };
 
     auto generate_message_object(
@@ -145,7 +148,7 @@ struct StreamCallback : public ::testing::Test {
         }
         result.per_message_size = msg.data_span().size_bytes();
         result.validator = validator;
-        result.sctx.on_data_received =
+        result.sctx.callbacks.on_data_received =
             quic_callback_function{ result.validator, &result.called_times };
 
         auto remanining_bytes = result.storage.size();
@@ -217,9 +220,8 @@ TEST_F(StreamCallback, SingleMessageLargerThanReceiveBuffer) {
         kHowManyMessages, std::size_t{ ~0u },
         encode_chat_message(kChatRandomTextLength));
     auto evt = obj.get_receive_event();
-    stream_context custom_sctx{ nullptr, obj.sctx.connection(),
-                                obj.sctx.on_data_received,
-                                obj.per_message_size / 2 };
+    stream custom_sctx{ nullptr, obj.sctx.connection(), obj.sctx.callbacks,
+                        obj.per_message_size / 2 };
     StreamCallbackReceive(custom_sctx, evt);
     EXPECT_EQ(obj.called_times, 0);
 }

@@ -16,12 +16,19 @@ static mad::log_printer logger{ "console" };
 
 static void
 client_on_connected([[maybe_unused]] void * uctx,
-                    [[maybe_unused]] mad::nexus::connection_context & cctx) {}
+                    [[maybe_unused]] mad::nexus::connection & cctx) {}
 
 static void
 client_on_disconnected([[maybe_unused]] void * uctx,
-                       [[maybe_unused]] mad::nexus::connection_context & cctx) {
+                       [[maybe_unused]] mad::nexus::connection & cctx) {}
+
+static void client_on_stream_start([[maybe_unused]] void * uctx,
+                                   [[maybe_unused]] mad::nexus::stream & sctx) {
+
 }
+
+static void client_on_stream_end([[maybe_unused]] void * uctx,
+                                 [[maybe_unused]] mad::nexus::stream & sctx) {}
 
 [[maybe_unused]] static std::size_t
 client_stream_data_received([[maybe_unused]] void * uctx,
@@ -103,7 +110,8 @@ int main(int argc, char * argv []) {
         return 1;
     }
 
-    mad::nexus::quic_configuration cfg{ mad::nexus::e_role::client };
+    mad::nexus::quic_configuration cfg{ mad::nexus::e_quic_impl_type::msquic,
+                                        mad::nexus::e_role::client };
     cfg.alpn = "test";
 
     cfg.credentials.certificate_path =
@@ -112,20 +120,24 @@ int main(int argc, char * argv []) {
     cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
     cfg.udp_port_number = 6666;
 
-    auto app = mad::nexus::make_quic_application(
-        mad::nexus::e_quic_impl_type::msquic, cfg);
+    auto app = mad::nexus::make_quic_application(cfg);
+
     auto client = app->make_client();
 
-    client->callbacks.on_connected = mad::nexus::quic_callback_function{
-        &client_on_connected, client.get()
-    };
-    client->callbacks.on_disconnected = mad::nexus::quic_callback_function{
-        &client_on_disconnected, client.get()
-    };
-    client->callbacks.on_stream_data_received =
-        mad::nexus::quic_callback_function{ &client_stream_data_received,
-                                            client.get() };
-    // server->callbacks.on_connected = ;
+    // Register callback functions
+    {
+        using enum mad::nexus::callback_type;
+        client->register_callback<connected>(
+            &client_on_connected, client.get());
+        client->register_callback<disconnected>(
+            &client_on_disconnected, client.get());
+        client->register_callback<stream_start>(
+            &client_on_stream_start, client.get());
+        client->register_callback<stream_data>(
+            &client_stream_data_received, client.get());
+        client->register_callback<stream_end>(
+            &client_on_stream_end, client.get());
+    }
 
     if (auto r = client->init(); mad::nexus::failed(r)) {
         MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",

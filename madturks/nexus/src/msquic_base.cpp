@@ -75,7 +75,7 @@ constexpr std::string_view quic_stream_event_to_str(int etype) {
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream_context & sctx,
+QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream & sctx,
                                        events::send_complete & event) {
     //
     // A previous StreamSend call has completed, and the context is
@@ -101,10 +101,9 @@ QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream_context & sctx,
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
-                                  events::receive & event) {
+QUIC_STATUS StreamCallbackReceive(stream & sctx, events::receive & event) {
 
-    MAD_EXPECTS(sctx.on_data_received);
+    MAD_EXPECTS(sctx.callbacks.on_data_received);
     MAD_EXPECTS(event.BufferCount > 0);
     MAD_EXPECTS(event.TotalBufferLength > 0);
     auto & receive_buffer = sctx.rbuf();
@@ -158,8 +157,8 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
                     sizeof(std::uint32_t), size);
 
                 // Only deliver complete messages to the application layer.
-                [[maybe_unused]] auto consumed_bytes = sctx.on_data_received(
-                    message);
+                [[maybe_unused]] auto consumed_bytes =
+                    sctx.callbacks.on_data_received(message);
                 push_payload_cnt++;
                 MAD_LOG_DEBUG_I(
                     stream_logger(), "Push payload count {}", push_payload_cnt);
@@ -203,9 +202,13 @@ QUIC_STATUS StreamCallbackReceive(stream_context & sctx,
  * @return QUIC_STATUS Return code indicating callback result
  */
 MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
-    stream_context & sctx, [[maybe_unused]] events::shutdown_complete & event)
+    stream & sctx, [[maybe_unused]] events::shutdown_complete & event)
 
 {
+
+    MAD_EXPECTS(sctx.callbacks.on_close);
+    sctx.callbacks.on_close(sctx);
+
     if (event.AppCloseInProgress) {
         // If we initiated this
         return QUIC_STATUS_SUCCESS;
@@ -214,7 +217,7 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
     MAD_LOG_DEBUG_I(stream_logger(), "StreamCallbackShutdownComplete called {}",
                     event.AppCloseInProgress == true);
     return sctx.connection()
-        .remove_stream(sctx.stream())
+        .remove_stream(sctx.handle_as<>())
         .and_then([&](auto &&) {
             MAD_LOG_DEBUG_I(
                 stream_logger(), "stream erased from connection map");
@@ -233,13 +236,13 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackStartComplete(
-    stream_context & sctx, events::start_complete & event)
+MAD_ALWAYS_INLINE QUIC_STATUS
+StreamCallbackStartComplete(stream & sctx, events::start_complete & event)
 
 {
     if (QUIC_FAILED(event.Status)) {
         return sctx.connection()
-            .remove_stream(sctx.stream())
+            .remove_stream(sctx.handle_as<>())
             .and_then([&](auto &&) {
                 MAD_LOG_DEBUG_I(
                     stream_logger(), "stream erased from connection map");
@@ -248,6 +251,8 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackStartComplete(
             .value_or(QUIC_STATUS_SUCCESS);
     }
 
+    MAD_EXPECTS(sctx.callbacks.on_start);
+    sctx.callbacks.on_start(sctx);
     return QUIC_STATUS_SUCCESS;
 }
 
@@ -262,13 +267,13 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackStartComplete(
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-QUIC_STATUS StreamCallback(HQUIC stream, void * context,
+QUIC_STATUS StreamCallback([[maybe_unused]] HQUIC stream_handle, void * context,
                            QUIC_STREAM_EVENT * event) {
-    assert(stream);
+    assert(stream_handle);
     assert(context);
     assert(event);
 
-    auto & sctx = *static_cast<stream_context *>(context);
+    auto & sctx = *static_cast<stream *>(context);
     MAD_LOG_DEBUG_I(stream_logger(), "StreamCallback  - {} - {}",
                     quic_stream_event_to_str(event->Type),
                     std::to_underlying(event->Type));
@@ -306,7 +311,7 @@ std::error_code msquic_base::init() {
 }
 
 auto msquic_base::open_stream(
-    connection_context & cctx,
+    connection & cctx,
     std::optional<stream_data_callback_t> data_callback) -> open_stream_result {
     MAD_LOG_INFO("new stream open call");
 
@@ -320,23 +325,29 @@ auto msquic_base::open_stream(
         return std::unexpected(quic_error_code::stream_open_failed);
     }
 
+    stream_callbacks scb{
+        .on_start = callbacks.on_stream_start,
+        .on_close = callbacks.on_stream_close,
+        .on_data_received = data_callback ? data_callback.value()
+                                          : callbacks.on_stream_data_received
+    };
+
     // The user may decide to use different callbacks per stream.
-    auto callback_to_use = data_callback ? data_callback.value()
-                                         : callbacks.on_stream_data_received;
+
     return cctx
         .add_new_stream({ new_stream,
                           [](void * sp) {
                               MsQuic->StreamClose(static_cast<HQUIC>(sp));
                           } },
-                        callback_to_use)
+                        scb)
         .and_then([&](auto && v) -> open_stream_result {
-            MsQuic->SetContext(static_cast<HQUIC>(v.get().stream()),
+            MsQuic->SetContext(v.get().template handle_as<HQUIC>(),
                                static_cast<void *>(&v.get()));
             return std::move(v);
         })
         .and_then([&](auto && v) -> open_stream_result {
             if (QUIC_FAILED(MsQuic->StreamStart(
-                    static_cast<HQUIC>(v.get().stream()),
+                    v.get().template handle_as<HQUIC>(),
                     QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL))) {
 
                 // This function starts the processing of the stream by the
@@ -352,10 +363,10 @@ auto msquic_base::open_stream(
         });
 }
 
-auto msquic_base::close_stream(stream_context & sctx) -> std::error_code {
+auto msquic_base::close_stream(stream & sctx) -> std::error_code {
 
     return sctx.connection()
-        .remove_stream(sctx.stream())
+        .remove_stream(sctx.handle_as<>())
         .and_then([&](auto &&) {
             MAD_LOG_DEBUG_I(
                 stream_logger(), "stream erased from connection map");
@@ -364,8 +375,7 @@ auto msquic_base::close_stream(stream_context & sctx) -> std::error_code {
         .value_or(quic_error_code::stream_does_not_exist);
 }
 
-auto msquic_base::send(stream_context & sctx,
-                       send_buffer<true> buf) -> std::size_t {
+auto msquic_base::send(stream & sctx, send_buffer<true> buf) -> std::size_t {
 
     // This function is used to queue data on a stream to be sent.
     // The function itself is non-blocking and simply queues the data and
@@ -393,9 +403,10 @@ auto msquic_base::send(stream_context & sctx,
                   buf.encoded_data_size());
 
     // We're using the context pointer here to store the key.
-    if (auto status = MsQuic->StreamSend(static_cast<HQUIC>(sctx.stream()),
-                                         qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf);
+    if (auto status = MsQuic->StreamSend(
+            sctx.handle_as<HQUIC>(), qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf);
         QUIC_FAILED(status)) {
+        // Free the buffer?
         return 0;
     }
     // The object is in use by MSQUIC.

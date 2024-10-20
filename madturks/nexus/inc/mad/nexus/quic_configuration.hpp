@@ -18,6 +18,11 @@ struct quic_credentials {
     std::string private_key_path;
 };
 
+enum class e_quic_impl_type : std::uint32_t
+{
+    msquic
+};
+
 enum class e_role
 {
     client,
@@ -26,7 +31,8 @@ enum class e_role
 
 struct quic_configuration {
 
-    quic_configuration(e_role role) : role_(role) {}
+    quic_configuration(e_quic_impl_type impl_type, e_role role) :
+        impl_type_(impl_type), role_(role) {}
 
     std::string alpn = { "test" };
     std::string appname = { "test" };
@@ -40,7 +46,12 @@ struct quic_configuration {
         return role_;
     }
 
+    e_quic_impl_type impl_type() const {
+        return impl_type_;
+    }
+
 private:
+    const e_quic_impl_type impl_type_;
     const e_role role_;
 };
 

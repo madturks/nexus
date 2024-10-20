@@ -18,11 +18,11 @@ public:
     msquic_base();
 
     std::error_code init() override final;
-    auto open_stream(connection_context & cctx,
+    auto open_stream(connection & cctx,
                      std::optional<stream_data_callback_t> data_callback)
         -> open_stream_result override final;
-    auto close_stream(stream_context & sctx) -> std::error_code override final;
-    auto send(stream_context & sctx,
+    auto close_stream(stream & sctx) -> std::error_code override final;
+    auto send(stream & sctx,
               send_buffer<true> buf) -> std::size_t override final;
 
     virtual ~msquic_base() override;

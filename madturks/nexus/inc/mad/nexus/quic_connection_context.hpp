@@ -1,7 +1,9 @@
 #pragma once
 
+#include <mad/nexus/handle_carrier.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/serial_number_carrier.hpp>
 #include <mad/nexus/shared_ptr_raw_equal.hpp>
 #include <mad/nexus/shared_ptr_raw_hash.hpp>
 
@@ -9,33 +11,27 @@
 #include <unordered_map>
 
 namespace mad::nexus {
-struct connection_context {
+
+template <typename Derived>
+struct stream_container {
     using stream_handle_t = std::shared_ptr<void>;
     using stream_map_t =
-        std::unordered_map<stream_handle_t, stream_context, shared_ptr_raw_hash,
+        std::unordered_map<stream_handle_t, stream, shared_ptr_raw_hash,
                            shared_ptr_raw_equal>;
     using add_stream_result_t =
-        std::expected<std::reference_wrapper<stream_context>, std::error_code>;
+        std::expected<std::reference_wrapper<stream>, std::error_code>;
     using remove_stream_result_t = std::optional<stream_map_t::node_type>;
 
     /**
-     * Construct a new connection context object
-     *
-     * @param handle Connection handle
-     */
-    connection_context(void * handle) : connection_handle(handle) {}
-
-    /**
-    * Add a new connection to the connection map.
-    *
-    * @param ptr The type-erased connection shared pointer
-    -
-    * @return reference to the connection_context if successful,
-    * std::nullopt otherwise.
-    */
+   * Add a new connection to the connection map.
+   *
+   * @param ptr The type-erased connection shared pointer
+   -
+   * @return reference to the connection_context if successful,
+   * std::nullopt otherwise.
+   */
     auto add_new_stream(std::shared_ptr<void> ptr,
-                        stream_data_callback_t data_callback)
-        -> add_stream_result_t {
+                        stream_callbacks callbacks) -> add_stream_result_t {
 
         auto stream_handle = ptr.get();
         auto present = streams.find(ptr);
@@ -48,7 +44,8 @@ struct connection_context {
 
         const auto & [emplaced_itr, emplace_status] = streams.emplace(
             std::move(ptr),
-            stream_context{ stream_handle, *this, std::move(data_callback) });
+            stream{ stream_handle, *static_cast<Derived *>(this),
+                    std::move(callbacks) });
 
         if (!emplace_status) {
             return std::unexpected(quic_error_code::stream_emplace_failed);
@@ -77,16 +74,22 @@ struct connection_context {
         return streams.extract(present);
     }
 
-    template <typename T = void *>
-    [[nodiscard]] T handle_as() const {
-        return static_cast<T>(connection_handle);
-    }
-
 private:
-    void * connection_handle;
     /**
-     * Enable lookup by raw pointer.
+     * Streams owned by the connection.
      */
     stream_map_t streams;
+};
+
+struct connection : public serial_number_carrier,
+                    handle_carrier,
+                    stream_container<connection> {
+
+    /**
+     * Construct a new connection context object
+     *
+     * @param handle Connection handle
+     */
+    using handle_carrier::handle_carrier;
 };
 } // namespace mad::nexus

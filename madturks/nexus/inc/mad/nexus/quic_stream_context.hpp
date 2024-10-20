@@ -1,10 +1,20 @@
 #pragma once
 
 #include <mad/circular_buffer_vm.hpp>
+#include <mad/nexus/handle_carrier.hpp>
 #include <mad/nexus/quic_callback_types.hpp>
+#include <mad/nexus/serial_number_carrier.hpp>
 
 namespace mad::nexus {
-struct stream_context {
+
+struct stream_callbacks {
+    stream_callback_t on_start;
+    stream_callback_t on_close;
+    stream_data_callback_t on_data_received;
+};
+
+struct stream : public serial_number_carrier,
+                handle_carrier {
 
     using circular_buffer_t = mad::circular_buffer_vm<mad::vm_cb_backend_mmap>;
 
@@ -15,19 +25,13 @@ struct stream_context {
      * @param receive_buffer_size Size of the receive circular buffer.
      * @param send_buffer_size  Size of the send circular buffer.
      */
-    stream_context(void * hstream, connection_context & cctx,
-                   stream_data_callback_t data_callback,
-                   std::size_t receive_buffer_size = 32768) :
-        stream_handle_(hstream), connection_context_(cctx),
-        on_data_received(data_callback),
+    stream(void * hstream, connection & cctx, stream_callbacks cbks,
+           std::size_t receive_buffer_size = 32768) :
+        handle_carrier(hstream), connection_context_(cctx), callbacks(cbks),
         receive_buffer(
             receive_buffer_size, circular_buffer_t::auto_align_to_page{}) {}
 
-    inline void * stream() const {
-        return stream_handle_;
-    }
-
-    inline connection_context & connection() const {
+    inline struct connection & connection() const {
         return connection_context_;
     }
 
@@ -41,17 +45,12 @@ struct stream_context {
 
 private:
     /**
-     * Msquic stream handle
-     */
-    void * stream_handle_;
-
-    /**
      * The connection that stream belongs to.
      */
-    connection_context & connection_context_;
+    struct connection & connection_context_;
 
 public:
-    stream_data_callback_t on_data_received;
+    stream_callbacks callbacks;
 
 private:
     /**
