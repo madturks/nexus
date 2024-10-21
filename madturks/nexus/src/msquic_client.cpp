@@ -105,7 +105,7 @@ struct MsQuicClientCallbacks {
                                    MsQuic->StreamClose(static_cast<HQUIC>(sp));
                                } },
                              scbs)
-            .and_then([&](auto && v) -> connection::add_stream_result_t {
+            .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
                 MAD_LOG_DEBUG_I(client, "Client peer stream started!");
                 MsQuic->SetCallbackHandler(
                     new_stream, reinterpret_cast<void *>(StreamCallback),
@@ -258,8 +258,8 @@ msquic_client::msquic_client(const msquic_application & app) :
 
 msquic_client::~msquic_client() = default;
 
-std::error_code msquic_client::connect(std::string_view target,
-                                       std::uint16_t port) {
+auto msquic_client::connect(std::string_view target,
+                            std::uint16_t port) -> result<> {
 
     auto ptr = std::make_shared<MsQuicConnection>(
         application.registration(), MsQuicCleanUpMode::CleanUpManual,
@@ -268,17 +268,18 @@ std::error_code msquic_client::connect(std::string_view target,
     auto & connection = *reinterpret_cast<MsQuicConnection *>(ptr.get());
 
     if (!connection.IsValid()) {
-        return quic_error_code::connection_initialization_failed;
+        return std::unexpected(
+            quic_error_code::connection_initialization_failed);
     }
 
     auto target_str = std::string{ target };
     if (QUIC_FAILED(connection.Start(
             application.configuration(), target_str.c_str(), port))) {
-        return quic_error_code::connection_start_failed;
+        return std::unexpected(quic_error_code::connection_start_failed);
     }
 
     connection_ptr = ptr;
 
-    return quic_error_code::success;
+    return {};
 }
 } // namespace mad::nexus

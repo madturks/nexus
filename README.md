@@ -27,6 +27,11 @@ If you're getting `ADDR_NO_RANDOMIZE` errors running TSAN-enabled executables, t
 echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
 ```
 
+### Running LSAN
+
+```sh
+ASAN_OPTIONS=detect_leaks=1 ./command
+```
 ### Start MSQUIC LTTng trace
 
 Install the lttng runtime dependencies

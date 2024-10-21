@@ -10,12 +10,12 @@
 // For branch predictor optimization
 #define MAD_LOG_LEVEL_LIKELINESS(X)      MAD_LOG_LEVEL_LIKELINESS_IMPL(X)
 #define MAD_LOG_LEVEL_LIKELINESS_IMPL(X) MAD_LOG_LEVEL_LIKELINESS_##X
-#define MAD_LOG_LEVEL_LIKELINESS_trace   [[unlikely]]
-#define MAD_LOG_LEVEL_LIKELINESS_debug   [[unlikely]]
-#define MAD_LOG_LEVEL_LIKELINESS_info
-#define MAD_LOG_LEVEL_LIKELINESS_warn     [[likely]]
-#define MAD_LOG_LEVEL_LIKELINESS_error    [[likely]]
-#define MAD_LOG_LEVEL_LIKELINESS_critical [[likely]]
+#define MAD_LOG_LEVEL_LIKELINESS_TRACE   [[unlikely]]
+#define MAD_LOG_LEVEL_LIKELINESS_DEBUG   [[unlikely]]
+#define MAD_LOG_LEVEL_LIKELINESS_INFO
+#define MAD_LOG_LEVEL_LIKELINESS_WARN     [[likely]]
+#define MAD_LOG_LEVEL_LIKELINESS_ERROR    [[likely]]
+#define MAD_LOG_LEVEL_LIKELINESS_CRITICAL [[likely]]
 
 /**
  * @brief Macro function to log through given log printer instance
@@ -47,12 +47,10 @@
  */
 #define MAD_LOG_TRACE_I(INSTANCE, FMT, ...)                                    \
     do {                                                                       \
-        constexpr auto trace = mad::log_level::trace;                          \
-        if (INSTANCE.should_log(trace))                                        \
-            MAD_LOG_LEVEL_LIKELINESS(trace) {                                  \
-                INSTANCE                                                       \
-                    .template log_trace<mad::meta::source_location{}, false>(  \
-                        FMT, ##__VA_ARGS__);                                   \
+        if (INSTANCE.should_log(::mad::log_level::trace))                      \
+            MAD_LOG_LEVEL_LIKELINESS_TRACE {                                   \
+                INSTANCE.template log_trace<::mad::meta::source_location{},    \
+                                            false>(FMT, ##__VA_ARGS__);        \
             }                                                                  \
     } while (0)
 
@@ -68,12 +66,10 @@
  */
 #define MAD_LOG_DEBUG_I(INSTANCE, FMT, ...)                                    \
     do {                                                                       \
-        constexpr auto debug = mad::log_level::debug;                          \
-        if (INSTANCE.should_log(debug))                                        \
-            MAD_LOG_LEVEL_LIKELINESS(debug) {                                  \
-                INSTANCE                                                       \
-                    .template log_debug<mad::meta::source_location{}, false>(  \
-                        FMT, ##__VA_ARGS__);                                   \
+        if (INSTANCE.should_log(::mad::log_level::debug))                      \
+            MAD_LOG_LEVEL_LIKELINESS_DEBUG {                                   \
+                INSTANCE.template log_debug<::mad::meta::source_location{},    \
+                                            false>(FMT, ##__VA_ARGS__);        \
             }                                                                  \
     } while (0)
 
@@ -88,11 +84,10 @@
  */
 #define MAD_LOG_INFO_I(INSTANCE, FMT, ...)                                     \
     do {                                                                       \
-        constexpr auto info = mad::log_level::info;                            \
-        if (INSTANCE.should_log(info))                                         \
-            MAD_LOG_LEVEL_LIKELINESS(info) {                                   \
+        if (INSTANCE.should_log(::mad::log_level::info))                       \
+            MAD_LOG_LEVEL_LIKELINESS_INFO {                                    \
                 INSTANCE                                                       \
-                    .template log_info<mad::meta::source_location{}, false>(   \
+                    .template log_info<::mad::meta::source_location{}, false>( \
                         FMT, ##__VA_ARGS__);                                   \
             }                                                                  \
     } while (0)
@@ -109,11 +104,10 @@
  */
 #define MAD_LOG_WARN_I(INSTANCE, FMT, ...)                                     \
     do {                                                                       \
-        constexpr auto warn = mad::log_level::warn;                            \
-        if (INSTANCE.should_log(warn))                                         \
-            MAD_LOG_LEVEL_LIKELINESS(warn) {                                   \
+        if (INSTANCE.should_log(::mad::log_level::warn))                       \
+            MAD_LOG_LEVEL_LIKELINESS_WARN {                                    \
                 INSTANCE                                                       \
-                    .template log_warn<mad::meta::source_location{}, false>(   \
+                    .template log_warn<::mad::meta::source_location{}, false>( \
                         FMT, ##__VA_ARGS__);                                   \
             }                                                                  \
     } while (0)
@@ -130,11 +124,10 @@
  */
 #define MAD_LOG_ERROR_I(INSTANCE, FMT, ...)                                    \
     do {                                                                       \
-        constexpr auto error = mad::log_level::error;                          \
-        if (INSTANCE.should_log(error))                                        \
-            MAD_LOG_LEVEL_LIKELINESS(error) {                                  \
+        if (INSTANCE.should_log(::mad::log_level::error))                      \
+            MAD_LOG_LEVEL_LIKELINESS_ERROR {                                   \
                 INSTANCE                                                       \
-                    .template log_err<mad::meta::source_location{}, false>(    \
+                    .template log_err<::mad::meta::source_location{}, false>(  \
                         FMT, ##__VA_ARGS__);                                   \
             }                                                                  \
     } while (0)
@@ -151,10 +144,9 @@
  */
 #define MAD_LOG_CRITICAL_I(INSTANCE, FMT, ...)                                 \
     do {                                                                       \
-        constexpr auto critical = mad::log_level::critical;                    \
-        if (INSTANCE.should_log(critical))                                     \
-            MAD_LOG_LEVEL_LIKELINESS(critical) {                               \
-                INSTANCE.template log_critical<mad::meta::source_location{},   \
+        if (INSTANCE.should_log(::mad::log_level::critical))                   \
+            MAD_LOG_LEVEL_LIKELINESS_CRITICAL {                                \
+                INSTANCE.template log_critical<::mad::meta::source_location{}, \
                                                false>(FMT, ##__VA_ARGS__);     \
             }                                                                  \
     } while (0)

@@ -9,6 +9,8 @@
 // FIXME: MSVC?
 #define MAD_ALWAYS_INLINE inline __attribute__((always_inline))
 
+#define MAD_FLATTEN __attribute__((flatten))
+
 // clang-format off
 #if defined(__GNUC__) || defined(__clang__)
 #define MAD_EXHAUSTIVE_SWITCH_BEGIN                                            \

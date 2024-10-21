@@ -185,6 +185,7 @@ namespace detail {
  */
 template <typename SharedMutexType = shared_mutex_t>
 struct lockable {
+
 protected:
     mutable SharedMutexType rwlock;
 };
@@ -203,6 +204,17 @@ public:
     using mutable_shared_accessor_t =
         detail::mutable_shared_accessor<ResourceType>;
     using exclusive_accessor_t = detail::exclusive_accessor<ResourceType>;
+
+    concurrent() = default;
+
+    concurrent(concurrent && other) : lockable() {
+        // Lock both locks to ensure no operations happen
+        // whilst the move happens
+        std::scoped_lock lock{ rwlock, other.rwlock };
+        resource = std::move(other.resource);
+    }
+
+    concurrent(const concurrent &) = delete;
 
     /**
      * @brief Grab shared_lock and grant access to the resource.

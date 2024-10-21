@@ -258,3 +258,4 @@ tgt/
 *.capnp.h
 
 .gdb_history
+massif.out*

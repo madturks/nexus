@@ -57,6 +57,14 @@ std::string quic_error_code_category::message(int condition) const {
             return "Connection start failed.";
         case connection_initialization_failed:
             return "Connection initialization failed.";
+        case connection_does_not_exists:
+            return "Connection does not exists.";
+        case connection_emplace_failed:
+            return "Connection emplace failed.";
+        case connection_already_exists:
+            return "Connection already exists.";
+        case send_failed:
+            return "Send failed.";
     }
 
     MAD_EXHAUSTIVE_SWITCH_END

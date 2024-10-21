@@ -25,7 +25,11 @@ enum class quic_error_code : std::int32_t
     stream_already_exists,
     stream_does_not_exist,
     connection_initialization_failed,
-    connection_start_failed
+    connection_start_failed,
+    connection_already_exists,
+    connection_emplace_failed,
+    connection_does_not_exists,
+    send_failed
 };
 
 struct quic_error_code_category : std::error_category {

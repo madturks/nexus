@@ -4,13 +4,12 @@
 #include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_base.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_server.hpp>
 #include <mad/nexus/shared_ptr_raw_equal.hpp>
 #include <mad/nexus/shared_ptr_raw_hash.hpp>
 
-#include <expected>
 #include <memory>
-#include <system_error>
 
 namespace mad::nexus {
 
@@ -32,7 +31,7 @@ public:
 
     virtual ~msquic_server() override;
 
-    virtual std::error_code listen() override;
+    virtual result<> listen() override;
 
     /**
      * Add a new connection to the connection map.
@@ -43,7 +42,7 @@ public:
      * std::nullopt otherwise.
      */
     auto add_new_connection(std::shared_ptr<void> ptr)
-        -> std::optional<std::reference_wrapper<connection>> {
+        -> result<std::reference_wrapper<connection>> {
 
         auto connection_handle = ptr.get();
         auto writer = connection_map.exclusive_access();
@@ -51,15 +50,15 @@ public:
 
         if (!(writer.end() == present)) {
             // The same connection already exists?
-            assert(false);
-            return std::nullopt;
+            MAD_ASSERT(false);
+            return std::unexpected(quic_error_code::connection_already_exists);
         }
 
         const auto & [emplaced_itr, emplace_status] = writer->emplace(
             std::move(ptr), connection{ connection_handle });
 
         if (!emplace_status) {
-            return std::nullopt;
+            return std::unexpected(quic_error_code::connection_emplace_failed);
         }
         return emplaced_itr->second;
     }
@@ -74,12 +73,14 @@ public:
      * std::nullopt otherwise.
      */
     auto remove_connection(void * connection_handle)
-        -> std::optional<connection_map_t::node_type> {
+        -> result<connection_map_t::node_type> {
         auto writer = connection_map.exclusive_access();
         auto present = writer->find(connection_handle);
 
         if (writer.end() == present) {
-            return std::nullopt;
+            return std::unexpected{
+                quic_error_code::connection_does_not_exists
+            };
         }
 
         // Remove the key-value pair from the map

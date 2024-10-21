@@ -77,11 +77,11 @@ struct MsQuicServerCallbacks {
                 assert(server.callbacks.on_connected);
                 // Notify app
                 server.callbacks.on_connected(v.get());
-                return std::optional{ QUIC_STATUS_SUCCESS };
+                return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };
             })
-            .or_else([&] {
+            .or_else([&](auto &&) {
                 MAD_LOG_ERROR_I(server, "connection could not be stored!");
-                return std::optional{ QUIC_STATUS_SUCCESS };
+                return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };
             })
             .value();
     }
@@ -107,13 +107,13 @@ struct MsQuicServerCallbacks {
         return server.remove_connection(connection)
             .and_then([&](auto && v) {
                 server.callbacks.on_disconnected(v.mapped());
-                return std::optional{ QUIC_STATUS_SUCCESS };
+                return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };
             })
-            .or_else([&] {
+            .or_else([&](auto &&) {
                 MAD_LOG_DEBUG_I(server,
                                 "connection shutdown complete but no such "
                                 "connection in map!");
-                return std::optional{ QUIC_STATUS_SUCCESS };
+                return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };
             })
             .value();
     }
@@ -195,6 +195,7 @@ struct MsQuicServerCallbacks {
      */
     static MAD_ALWAYS_INLINE QUIC_STATUS ServerListenerNewConnection(
         const new_connection_event & event, msquic_server & server) {
+
         MAD_LOG_INFO_I(server, "Listener received a new connection.");
         // A new connection is being attempted by a client. For the handshake to
         // proceed, the server must provide a configuration for QUIC to use. The
@@ -244,7 +245,7 @@ msquic_server::msquic_server(const msquic_application & app) :
 
 msquic_server::~msquic_server() = default;
 
-std::error_code msquic_server::listen() {
+auto msquic_server::listen() -> result<> {
 
     const auto & config = application.get_config();
 
@@ -255,7 +256,7 @@ std::error_code msquic_server::listen() {
     MsQuicListener & listener = *reinterpret_cast<MsQuicListener *>(
         listener_opaque.get());
     if (!listener.IsValid()) {
-        return quic_error_code::listener_start_failed;
+        return std::unexpected{ quic_error_code::listener_start_failed };
     }
 
     MsQuicAlpn alpn{ config.alpn.c_str() };
@@ -266,10 +267,10 @@ std::error_code msquic_server::listen() {
     QuicAddrSetPort(&Address, config.udp_port_number);
 
     if (QUIC_FAILED(listener.Start(alpn, &Address))) {
-        return quic_error_code::listener_start_failed;
+        return std::unexpected{ quic_error_code::listener_start_failed };
     }
 
-    return quic_error_code::success;
+    return {};
 }
 
 } // namespace mad::nexus
