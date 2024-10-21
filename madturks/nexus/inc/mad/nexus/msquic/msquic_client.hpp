@@ -13,8 +13,8 @@ public:
     friend struct MsQuicClientCallbacks;
     virtual ~msquic_client() override;
 
-    virtual std::error_code connect(std::string_view target,
-                                    std::uint16_t port) override;
+    virtual auto connect(std::string_view target,
+                         std::uint16_t port) -> result<> override;
 
     std::unique_ptr<connection> connection_ctx;
 

@@ -5,20 +5,15 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/result.hpp>
 #include <mad/nexus/send_buffer.hpp>
 
 #include <flatbuffers/flatbuffer_builder.h>
-
-#include <expected>
-#include <system_error>
 
 namespace mad::nexus {
 
 class quic_base {
 public:
-    using open_stream_result =
-        std::expected<std::reference_wrapper<stream>, std::error_code>;
-
     quic_base() = default;
 
     /**
@@ -26,7 +21,7 @@ public:
      *
      * @return std::error_code indicating the status.
      */
-    [[nodiscard]] virtual std::error_code init() = 0;
+    [[nodiscard]] virtual result<> init() = 0;
 
     /**
      * Open a new stream in given connection context (@p cctx)
@@ -40,7 +35,7 @@ public:
     [[nodiscard]] virtual auto
     open_stream(connection & cctx,
                 std::optional<stream_data_callback_t> data_callback)
-        -> open_stream_result = 0;
+        -> result<std::reference_wrapper<stream>> = 0;
 
     /**
      * Close the given stream.
@@ -49,8 +44,7 @@ public:
      *
      * @return std::error_code Error code indicating the close status.
      */
-    [[nodiscard]] virtual auto
-    close_stream(stream & sctx) -> std::error_code = 0;
+    [[nodiscard]] virtual auto close_stream(stream & sctx) -> result<> = 0;
 
     /**
      * Send data to an already open stream
@@ -61,8 +55,8 @@ public:
      * @return std::size_t The amount of bytes successfully written to the send
      * buffer.
      */
-    [[nodiscard]] virtual auto send(stream & sctx,
-                                    send_buffer<true> buf) -> std::size_t = 0;
+    [[nodiscard]] virtual auto
+    send(stream & sctx, send_buffer<true> buf) -> result<std::size_t> = 0;
 
     /**
      * Register a callback function for a specific event.

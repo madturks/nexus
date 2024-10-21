@@ -8,7 +8,7 @@ project(
         'cpp_std=c++23',
         'cpp_compiler=clang++-18',
         'cpp_rtti=false',
-        # 'b_sanitize=address,undefined',
+        #'b_sanitize=leak',
         'b_lundef=false',
     ],
     license: 'GPL',

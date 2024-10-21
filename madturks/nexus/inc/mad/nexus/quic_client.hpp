@@ -2,6 +2,7 @@
 
 #include <mad/nexus/quic_base.hpp>
 #include <mad/nexus/quic_configuration.hpp>
+#include <mad/nexus/result.hpp>
 
 namespace mad::nexus {
 
@@ -10,7 +11,7 @@ public:
     virtual ~quic_client() override;
 
     // TODO: Resumption ticket logic
-    [[nodiscard]] virtual std::error_code connect(std::string_view target,
-                                                  std::uint16_t port) = 0;
+    [[nodiscard]] virtual auto connect(std::string_view target,
+                                       std::uint16_t port) -> result<> = 0;
 };
 } // namespace mad::nexus

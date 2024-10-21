@@ -5,6 +5,8 @@
 #include <mad/nexus/quic_callback_types.hpp>
 #include <mad/nexus/serial_number_carrier.hpp>
 
+#include <atomic>
+
 namespace mad::nexus {
 
 struct stream_callbacks {
@@ -13,8 +15,18 @@ struct stream_callbacks {
     stream_data_callback_t on_data_received;
 };
 
+struct debug_iface {
+
+#ifndef NDEBUG
+
+    static inline std::atomic<std::uint64_t> sends_in_flight;
+
+#endif
+};
+
 struct stream : public serial_number_carrier,
-                handle_carrier {
+                handle_carrier,
+                debug_iface {
 
     using circular_buffer_t = mad::circular_buffer_vm<mad::vm_cb_backend_mmap>;
 

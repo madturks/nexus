@@ -4,11 +4,15 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_error_code.hpp>
+#include <mad/nexus/result.hpp>
 #include <mad/nexus/schemas/chat_generated.h>
 #include <mad/nexus/schemas/main_generated.h>
 #include <mad/nexus/schemas/monster_generated.h>
 
 #include <cxxopts.hpp>
+
+#include <expected>
+#include <system_error>
 
 #include "lorem_ipsum.hpp"
 
@@ -75,6 +79,7 @@ client_stream_data_received([[maybe_unused]] void * uctx,
 }
 
 int main(int argc, char * argv []) {
+    logger.set_log_level(mad::log_level::info);
     MAD_LOG_INFO_I(logger, "{}", __cplusplus);
 
     cxxopts::ParseResult parsed_options{};
@@ -139,16 +144,15 @@ int main(int argc, char * argv []) {
             &client_on_stream_end, client.get());
     }
 
-    if (auto r = client->init(); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
-                        r.value(), r.message());
-        return -1;
-    }
+    auto result = client->init().and_then([&]() {
+        return client->connect("127.0.0.1", 6666);
+    });
 
-    if (auto r = client->connect("127.0.0.1", 6666); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(),
-                        r.message());
-        return -2;
+    if (!result) {
+        const auto & error = result.error();
+        MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}",
+                        error.value(), error.message());
+        return error.value();
     }
 
     MAD_LOG_INFO_I(logger, "QUIC client connected to the destination.");

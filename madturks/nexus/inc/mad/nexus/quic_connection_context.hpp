@@ -3,6 +3,7 @@
 #include <mad/nexus/handle_carrier.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/result.hpp>
 #include <mad/nexus/serial_number_carrier.hpp>
 #include <mad/nexus/shared_ptr_raw_equal.hpp>
 #include <mad/nexus/shared_ptr_raw_hash.hpp>
@@ -18,9 +19,6 @@ struct stream_container {
     using stream_map_t =
         std::unordered_map<stream_handle_t, stream, shared_ptr_raw_hash,
                            shared_ptr_raw_equal>;
-    using add_stream_result_t =
-        std::expected<std::reference_wrapper<stream>, std::error_code>;
-    using remove_stream_result_t = std::optional<stream_map_t::node_type>;
 
     /**
    * Add a new connection to the connection map.
@@ -30,8 +28,8 @@ struct stream_container {
    * @return reference to the connection_context if successful,
    * std::nullopt otherwise.
    */
-    auto add_new_stream(std::shared_ptr<void> ptr,
-                        stream_callbacks callbacks) -> add_stream_result_t {
+    auto add_new_stream(std::shared_ptr<void> ptr, stream_callbacks callbacks)
+        -> result<std::reference_wrapper<stream>> {
 
         auto stream_handle = ptr.get();
         auto present = streams.find(ptr);
@@ -61,11 +59,11 @@ struct stream_container {
      * stream exists.
      */
     [[nodiscard]] auto
-    remove_stream(void * stream_handle) -> remove_stream_result_t {
+    remove_stream(void * stream_handle) -> result<stream_map_t::node_type> {
         auto present = streams.find(stream_handle);
 
         if (streams.end() == present) {
-            return std::nullopt;
+            return std::unexpected(quic_error_code::stream_does_not_exist);
         }
 
         // Remove the key-value pair from the map

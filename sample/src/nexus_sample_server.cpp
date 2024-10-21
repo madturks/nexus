@@ -30,6 +30,7 @@
 struct session {
 
     static constexpr auto kStreamCount = 10;
+    static constexpr auto kThreadCount = 32;
     static constexpr auto kThreadSleepAmountMs =
         std::chrono::milliseconds{ 10 };
 
@@ -38,7 +39,11 @@ struct session {
 
     session(const session &) = delete;
     session & operator=(const session &) = delete;
-    session(session &&) = default;
+
+    session(session && other) :
+        server(other.server), connection_context(other.connection_context),
+        streams(std::move(other.streams)) {}
+
     session & operator=(session &&) = delete;
 
     ~session() {
@@ -64,7 +69,7 @@ struct session {
         }
 
         // Dispatch threads
-        for (int i = 0; i < 32; i++) {
+        for (auto i = 0u; i < kThreadCount; i++) {
             threads.emplace_back(&session::thread_routine, this,
                                  stop_source.get_token(), std::ref(server));
         }
@@ -74,39 +79,42 @@ struct session {
                         mad::nexus::quic_server & quic_server) {
 
         while (!st.stop_requested()) {
-            for (auto & [str, stream] : streams) {
-                (void) quic_server.send(
-                    stream.get(),
-                    quic_server.build_message(
-                        [](::flatbuffers::FlatBufferBuilder & fbb) {
-                            if (std::rand() % 2 == 0) {
-                                mad::schemas::Vec3 coords{ 10, 20, 30 };
-                                auto name = fbb.CreateString("Deruvish");
-                                mad::schemas::MonsterBuilder mb{ fbb };
-                                mb.add_hp(120);
-                                mb.add_mana(80);
-                                mb.add_name(name);
-                                mb.add_pos(&coords);
-                                auto f = mb.Finish();
+            {
+                auto streams_e = streams.exclusive_access();
+                for (auto & [str, stream] : streams_e) {
+                    (void) quic_server.send(
+                        stream.get(),
+                        quic_server.build_message(
+                            [](::flatbuffers::FlatBufferBuilder & fbb) {
+                                if (std::rand() % 2 == 0) {
+                                    mad::schemas::Vec3 coords{ 10, 20, 30 };
+                                    auto name = fbb.CreateString("Deruvish");
+                                    mad::schemas::MonsterBuilder mb{ fbb };
+                                    mb.add_hp(120);
+                                    mb.add_mana(80);
+                                    mb.add_name(name);
+                                    mb.add_pos(&coords);
+                                    auto f = mb.Finish();
 
-                                mad::schemas::EnvelopeBuilder env{ fbb };
-                                env.add_message(f.Union());
-                                env.add_message_type(
-                                    mad::schemas::Message::Monster);
-                                return env.Finish();
-                            } else {
-                                auto msg = fbb.CreateString(lorem_ipsum);
-                                mad::schemas::ChatBuilder cb{ fbb };
-                                cb.add_message(msg);
-                                cb.add_timestamp(123456789);
-                                auto f = cb.Finish();
-                                mad::schemas::EnvelopeBuilder env{ fbb };
-                                env.add_message(f.Union());
-                                env.add_message_type(
-                                    mad::schemas::Message::Chat);
-                                return env.Finish();
-                            }
-                        }));
+                                    mad::schemas::EnvelopeBuilder env{ fbb };
+                                    env.add_message(f.Union());
+                                    env.add_message_type(
+                                        mad::schemas::Message::Monster);
+                                    return env.Finish();
+                                } else {
+                                    auto msg = fbb.CreateString(lorem_ipsum);
+                                    mad::schemas::ChatBuilder cb{ fbb };
+                                    cb.add_message(msg);
+                                    cb.add_timestamp(123456789);
+                                    auto f = cb.Finish();
+                                    mad::schemas::EnvelopeBuilder env{ fbb };
+                                    env.add_message(f.Union());
+                                    env.add_message_type(
+                                        mad::schemas::Message::Chat);
+                                    return env.Finish();
+                                }
+                            }));
+                }
             }
             std::this_thread::sleep_for(kThreadSleepAmountMs);
         }
@@ -117,8 +125,8 @@ struct session {
 
     std::stop_source stop_source;
     std::vector<std::jthread> threads;
-    std::unordered_map<std::uint64_t,
-                       std::reference_wrapper<mad::nexus::stream>>
+    mad::concurrent<std::unordered_map<
+        std::uint64_t, std::reference_wrapper<mad::nexus::stream>>>
         streams;
 };
 
@@ -170,7 +178,10 @@ static void server_on_stream_start([[maybe_unused]] void * uctx,
         return;
     }
 
-    fi->second.streams.emplace(sctx.serial_number(), std::ref(sctx));
+    {
+        auto stream_map = fi->second.streams.mutable_shared_access();
+        stream_map->emplace(sctx.serial_number(), std::ref(sctx));
+    }
 }
 
 static void server_on_stream_end([[maybe_unused]] void * uctx,
@@ -183,16 +194,18 @@ static void server_on_stream_end([[maybe_unused]] void * uctx,
         return;
     }
 
-    auto fi2 = fi->second.streams.find(sctx.serial_number());
-    if (fi2 == fi->second.streams.end()) {
-        return;
+    {
+        auto stream_map = fi->second.streams.mutable_shared_access();
+        auto fi2 = stream_map->find(sctx.serial_number());
+        if (fi2 == stream_map->end()) {
+            return;
+        }
+        stream_map->erase(fi2);
     }
-
-    fi->second.streams.erase(fi2);
 }
 
 int main(int argc, char * argv []) {
-    logger.set_log_level(mad::log_level::debug);
+    logger.set_log_level(mad::log_level::info);
     MAD_LOG_INFO_I(logger, "{}", __cplusplus);
 
     cxxopts::ParseResult parsed_options{};
@@ -238,39 +251,45 @@ int main(int argc, char * argv []) {
     cfg.udp_port_number = 6666;
 
     auto app = mad::nexus::make_quic_application(cfg);
-    auto server = app->make_server();
-
-    // Register callback functions
     {
-        using enum mad::nexus::callback_type;
-        server->register_callback<connected>(
-            &server_on_connected, server.get());
-        server->register_callback<disconnected>(
-            &server_on_disconnected, server.get());
-        server->register_callback<stream_start>(
-            &server_on_stream_start, server.get());
-        server->register_callback<stream_end>(
-            &server_on_stream_end, server.get());
-    }
+        auto server = app->make_server();
 
-    if (auto r = server->init(); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
-                        r.value(), r.message());
-        return -1;
-    }
+        // Register callback functions
+        {
+            using enum mad::nexus::callback_type;
+            server->register_callback<connected>(
+                &server_on_connected, server.get());
+            server->register_callback<disconnected>(
+                &server_on_disconnected, server.get());
+            server->register_callback<stream_start>(
+                &server_on_stream_start, server.get());
+            server->register_callback<stream_end>(
+                &server_on_stream_end, server.get());
+        }
 
-    if (auto r = server->listen(); mad::nexus::failed(r)) {
-        MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}", r.value(),
-                        r.message());
-        return -2;
-    }
+        auto result = server->init().and_then([&] {
+            return server->listen();
+        });
 
-    MAD_LOG_INFO_I(
-        logger, "QUIC server is listening for incoming connections.");
-    MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
-    getchar();
+        if (!result) {
+            const auto & error = result.error();
+            MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}",
+                            error.value(), error.message());
+            return error.value();
+        }
+
+        MAD_LOG_INFO_I(
+            logger, "QUIC server is listening for incoming connections.");
+        MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
+        getchar();
+    }
     {
         auto map = connections.exclusive_access();
         map->clear();
+        MAD_LOG_INFO_I(logger, "{} conns going to be freed.", map->size());
+#ifndef NDEBUG
+        MAD_LOG_INFO_I(logger, "{} sends are still in flight.",
+                       mad::nexus::stream::sends_in_flight.load());
+#endif
     }
 }

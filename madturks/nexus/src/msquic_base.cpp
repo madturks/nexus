@@ -15,7 +15,7 @@
 namespace mad::nexus {
 
 static mad::log_printer & stream_logger() {
-    static log_printer stream_logger{ "quic-stream", log_level::debug };
+    static log_printer stream_logger{ "quic-stream", log_level::info };
     return stream_logger;
 }
 
@@ -87,6 +87,9 @@ QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream & sctx,
     // The size does not matter for the default allocator.
     // FIXME: Get this dynamically from the user
     flatbuffers::DefaultAllocator::dealloc(event.ClientContext, 0);
+#ifndef NDEBUG
+    sctx.sends_in_flight.fetch_sub(1);
+#endif
     return QUIC_STATUS_SUCCESS;
 }
 
@@ -218,10 +221,10 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
                     event.AppCloseInProgress == true);
     return sctx.connection()
         .remove_stream(sctx.handle_as<>())
-        .and_then([&](auto &&) {
+        .and_then([&](auto &&) -> result<QUIC_STATUS> {
             MAD_LOG_DEBUG_I(
                 stream_logger(), "stream erased from connection map");
-            return std::optional{ QUIC_STATUS_SUCCESS };
+            return QUIC_STATUS_SUCCESS;
         })
         .value_or(QUIC_STATUS_SUCCESS);
 }
@@ -243,10 +246,10 @@ StreamCallbackStartComplete(stream & sctx, events::start_complete & event)
     if (QUIC_FAILED(event.Status)) {
         return sctx.connection()
             .remove_stream(sctx.handle_as<>())
-            .and_then([&](auto &&) {
+            .and_then([&](auto &&) -> result<QUIC_STATUS> {
                 MAD_LOG_DEBUG_I(
                     stream_logger(), "stream erased from connection map");
-                return std::optional{ QUIC_STATUS_SUCCESS };
+                return QUIC_STATUS_SUCCESS;
             })
             .value_or(QUIC_STATUS_SUCCESS);
     }
@@ -301,18 +304,18 @@ QUIC_STATUS StreamCallback([[maybe_unused]] HQUIC stream_handle, void * context,
 };
 
 msquic_base::msquic_base() : log_printer("console") {
-    set_log_level(log_level::trace);
+    set_log_level(log_level::info);
 }
 
 msquic_base::~msquic_base() = default;
 
-std::error_code msquic_base::init() {
-    return quic_error_code::success;
+auto msquic_base::init() -> result<> {
+    return {};
 }
 
 auto msquic_base::open_stream(
-    connection & cctx,
-    std::optional<stream_data_callback_t> data_callback) -> open_stream_result {
+    connection & cctx, std::optional<stream_data_callback_t> data_callback)
+    -> result<std::reference_wrapper<stream>> {
     MAD_LOG_INFO("new stream open call");
 
     HQUIC new_stream = nullptr;
@@ -340,12 +343,12 @@ auto msquic_base::open_stream(
                               MsQuic->StreamClose(static_cast<HQUIC>(sp));
                           } },
                         scb)
-        .and_then([&](auto && v) -> open_stream_result {
+        .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
             MsQuic->SetContext(v.get().template handle_as<HQUIC>(),
                                static_cast<void *>(&v.get()));
             return std::move(v);
         })
-        .and_then([&](auto && v) -> open_stream_result {
+        .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
             if (QUIC_FAILED(MsQuic->StreamStart(
                     v.get().template handle_as<HQUIC>(),
                     QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL))) {
@@ -363,19 +366,19 @@ auto msquic_base::open_stream(
         });
 }
 
-auto msquic_base::close_stream(stream & sctx) -> std::error_code {
+auto msquic_base::close_stream(stream & sctx) -> result<> {
 
     return sctx.connection()
         .remove_stream(sctx.handle_as<>())
         .and_then([&](auto &&) {
             MAD_LOG_DEBUG_I(
                 stream_logger(), "stream erased from connection map");
-            return std::optional{ quic_error_code::success };
-        })
-        .value_or(quic_error_code::stream_does_not_exist);
+            return result<>{};
+        });
 }
 
-auto msquic_base::send(stream & sctx, send_buffer<true> buf) -> std::size_t {
+auto msquic_base::send(stream & sctx,
+                       send_buffer<true> buf) -> result<std::size_t> {
 
     // This function is used to queue data on a stream to be sent.
     // The function itself is non-blocking and simply queues the data and
@@ -406,12 +409,15 @@ auto msquic_base::send(stream & sctx, send_buffer<true> buf) -> std::size_t {
     if (auto status = MsQuic->StreamSend(
             sctx.handle_as<HQUIC>(), qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf);
         QUIC_FAILED(status)) {
-        // Free the buffer?
-        return 0;
+        return std::unexpected(quic_error_code::send_failed);
     }
     // The object is in use by MSQUIC.
     // The STREAM_SEND_COMPLETE callback will handle the cleanup.
     send_buffer<false> _{ std::move(buf) };
+
+#ifndef NDEBUG
+    sctx.sends_in_flight.fetch_add(1);
+#endif
     return data_span.size_bytes();
 }
 

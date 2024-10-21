@@ -6,6 +6,7 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection_context.hpp>
 #include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/result.hpp>
 
 namespace mad::nexus {
 
@@ -17,13 +18,13 @@ class msquic_base : virtual public quic_base,
 public:
     msquic_base();
 
-    std::error_code init() override final;
+    auto init() -> result<> override final;
     auto open_stream(connection & cctx,
                      std::optional<stream_data_callback_t> data_callback)
-        -> open_stream_result override final;
-    auto close_stream(stream & sctx) -> std::error_code override final;
+        -> result<std::reference_wrapper<stream>> override final;
+    auto close_stream(stream & sctx) -> result<> override final;
     auto send(stream & sctx,
-              send_buffer<true> buf) -> std::size_t override final;
+              send_buffer<true> buf) -> result<std::size_t> override final;
 
     virtual ~msquic_base() override;
 };
