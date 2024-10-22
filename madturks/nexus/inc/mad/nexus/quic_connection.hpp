@@ -2,7 +2,7 @@
 
 #include <mad/nexus/handle_carrier.hpp>
 #include <mad/nexus/quic_error_code.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_stream.hpp>
 #include <mad/nexus/result.hpp>
 #include <mad/nexus/serial_number_carrier.hpp>
 #include <mad/nexus/shared_ptr_raw_equal.hpp>
@@ -76,7 +76,7 @@ private:
     /**
      * Streams owned by the connection.
      */
-    stream_map_t streams;
+    stream_map_t streams{};
 };
 
 struct connection : public serial_number_carrier,

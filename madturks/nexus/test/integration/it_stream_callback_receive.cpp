@@ -3,8 +3,8 @@
 #include <mad/macros.hpp>
 #include <mad/nexus/quic_base.hpp>
 #include <mad/nexus/quic_callback_function.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
+#include <mad/nexus/quic_stream.hpp>
 #include <mad/nexus/schemas/chat_generated.h>
 #include <mad/nexus/schemas/main_generated.h>
 #include <mad/nexus/schemas/monster_generated.h>
@@ -14,7 +14,7 @@
 #include <gtest/gtest.h>
 #include <msquic.hpp>
 
-auto encode_monster_msg() {
+static auto encode_monster_msg() {
     static auto validator =
         +[](void * uptr, std::span<const std::uint8_t> buf) -> std::size_t {
         auto & times = *static_cast<std::uint32_t *>(uptr);
@@ -53,7 +53,7 @@ auto encode_monster_msg() {
     return std::make_pair(std::move(message), validator);
 }
 
-auto encode_chat_message(std::size_t how_large) {
+static auto encode_chat_message(std::size_t how_large) {
     static auto validator =
         +[](void * uptr, std::span<const std::uint8_t> buf) -> std::size_t {
         auto & times = *static_cast<std::uint32_t *>(uptr);

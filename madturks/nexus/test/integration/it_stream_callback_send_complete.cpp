@@ -1,4 +1,4 @@
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_stream.hpp>
 
 #include <flatbuffers/detached_buffer.h>
 #include <gmock/gmock.h>

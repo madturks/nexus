@@ -22,4 +22,9 @@ madturks_core_log_ut = executable(
     cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
 )
 
-test('Log unit tests', madturks_core_log_ut)
+asan_options = environment(
+    {
+        'ASAN_OPTIONS': 'halt_on_error=1:abort_on_error=1:print_summary=1:alloc_dealloc_mismatch=0',
+    },
+)
+test('Log unit tests', madturks_core_log_ut, env: asan_options)

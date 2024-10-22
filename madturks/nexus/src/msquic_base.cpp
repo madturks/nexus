@@ -1,9 +1,9 @@
 #include <mad/log>
 #include <mad/macro>
 #include <mad/nexus/msquic/msquic_base.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_stream.hpp>
 
 #include <flatbuffers/default_allocator.h>
 #include <flatbuffers/detached_buffer.h>
@@ -75,8 +75,8 @@ constexpr std::string_view quic_stream_event_to_str(int etype) {
  *
  * @return QUIC_STATUS Return code indicating callback result
  */
-QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream & sctx,
-                                       events::send_complete & event) {
+static QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream & sctx,
+                                              events::send_complete & event) {
     //
     // A previous StreamSend call has completed, and the context is
     // being returned back to the app.
@@ -92,6 +92,8 @@ QUIC_STATUS StreamCallbackSendComplete([[maybe_unused]] stream & sctx,
 #endif
     return QUIC_STATUS_SUCCESS;
 }
+
+// Chunked reader?
 
 /**
  * @brief The callback function for incoming stream data.
@@ -119,8 +121,7 @@ QUIC_STATUS StreamCallbackReceive(stream & sctx, events::receive & event) {
         const auto & received_data = event.Buffers [buffer_idx];
 
         const auto pull_amount = std::min(
-            receive_buffer.empty_space(),
-            static_cast<std::size_t>(received_data.Length - buffer_offset));
+            receive_buffer.empty_space(), received_data.Length - buffer_offset);
 
         MAD_LOG_DEBUG_I(stream_logger(),
                         "Pulled {} byte(s) into the receive buffer (rb "
@@ -146,9 +147,12 @@ QUIC_STATUS StreamCallbackReceive(stream & sctx, events::receive & event) {
         for (auto available_span = receive_buffer.available_span();
              available_span.size_bytes() >= sizeof(std::uint32_t);
              available_span = receive_buffer.available_span()) {
+
             // Read the size of the message
-            auto size = *reinterpret_cast<const std::uint32_t *>(
-                available_span.data());
+            // Comply with the strict aliasing rules.
+            std::uint32_t size{ 0 };
+            std::memcpy(&size, available_span.data(), sizeof(std::uint32_t));
+
             // Size is little-endian.
             if constexpr (std::endian::native == std::endian::big) {
                 size = std::byteswap(size);
@@ -186,8 +190,10 @@ QUIC_STATUS StreamCallbackReceive(stream & sctx, events::receive & event) {
         }
     }
 
+    // MsQuic->StreamReceiveComplete()
+
     MAD_LOG_DEBUG_I(stream_logger(),
-                    "Processed {} buffers in grand total of {} byte(s). "
+                    "Processed {} QUIC_BUFFER(s), total {} byte(s). "
                     "Receive buffer has {} byte(s) inside.",
                     event.BufferCount, event.TotalBufferLength,
                     receive_buffer.consumed_space());
@@ -208,7 +214,6 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
     stream & sctx, [[maybe_unused]] events::shutdown_complete & event)
 
 {
-
     MAD_EXPECTS(sctx.callbacks.on_close);
     sctx.callbacks.on_close(sctx);
 
@@ -217,13 +222,12 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
         return QUIC_STATUS_SUCCESS;
     }
 
-    MAD_LOG_DEBUG_I(stream_logger(), "StreamCallbackShutdownComplete called {}",
-                    event.AppCloseInProgress == true);
     return sctx.connection()
         .remove_stream(sctx.handle_as<>())
         .and_then([&](auto &&) -> result<QUIC_STATUS> {
-            MAD_LOG_DEBUG_I(
-                stream_logger(), "stream erased from connection map");
+            MAD_LOG_DEBUG_I(stream_logger(),
+                            "StreamCallbackShutdownComplete - stream "
+                            "erased from connection map");
             return QUIC_STATUS_SUCCESS;
         })
         .value_or(QUIC_STATUS_SUCCESS);
@@ -247,8 +251,9 @@ StreamCallbackStartComplete(stream & sctx, events::start_complete & event)
         return sctx.connection()
             .remove_stream(sctx.handle_as<>())
             .and_then([&](auto &&) -> result<QUIC_STATUS> {
-                MAD_LOG_DEBUG_I(
-                    stream_logger(), "stream erased from connection map");
+                MAD_LOG_DEBUG_I(stream_logger(),
+                                "StreamCallbackStartComplete - stream "
+                                "start failure, erasing stream");
                 return QUIC_STATUS_SUCCESS;
             })
             .value_or(QUIC_STATUS_SUCCESS);

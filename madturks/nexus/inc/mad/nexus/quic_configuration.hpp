@@ -30,17 +30,24 @@ enum class e_role
 };
 
 struct quic_configuration {
+private:
+    const e_quic_impl_type impl_type_;
+    const e_role role_;
 
+public:
     quic_configuration(e_quic_impl_type impl_type, e_role role) :
         impl_type_(impl_type), role_(role) {}
 
     std::string alpn = { "test" };
     std::string appname = { "test" };
-    std::optional<std::chrono::milliseconds> idle_timeout;
-    quic_credentials credentials;
-    std::uint16_t udp_port_number;
+    std::optional<std::chrono::milliseconds> idle_timeout{ std::nullopt };
+    std::optional<std::chrono::milliseconds> keep_alive_interval{
+        std::nullopt
+    };
+    quic_credentials credentials{};
     std::uint32_t stream_receive_window{ 8192 };
     std::uint32_t stream_receive_buffer{ 4096 };
+    std::uint16_t udp_port_number{ 6666 };
 
     e_role role() const {
         return role_;
@@ -49,10 +56,6 @@ struct quic_configuration {
     e_quic_impl_type impl_type() const {
         return impl_type_;
     }
-
-private:
-    const e_quic_impl_type impl_type_;
-    const e_role role_;
 };
 
 } // namespace mad::nexus

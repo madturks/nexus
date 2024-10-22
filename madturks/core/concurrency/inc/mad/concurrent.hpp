@@ -187,7 +187,7 @@ template <typename SharedMutexType = shared_mutex_t>
 struct lockable {
 
 protected:
-    mutable SharedMutexType rwlock;
+    mutable SharedMutexType rwlock{};
 };
 
 /**
@@ -246,7 +246,7 @@ private:
     /**
      * @brief The underlying resource.
      */
-    ResourceType resource;
+    ResourceType resource{};
 };
 
 } // namespace mad

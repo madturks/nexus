@@ -5,16 +5,14 @@ Reliable UDP implementation using modern C++.
 ## Build using clang
 
 ```sh
-meson setup tgt --wipe --native-file=.config/meson-clang
-meson compile -C tgt/
+clear && cd /workspaces/nexus && meson setup tgt --wipe --native-file=.config/meson-clang && clear && cd tgt && meson compile
 ```
 
 
 ## Build using gcc
 
 ```sh
-meson setup tgt --wipe --native-file=.config/meson-gcc
-meson compile -C tgt/
+clear && cd /workspaces/nexus && meson setup tgt --wipe --native-file=.config/meson-gcc && clear && cd tgt && meson compile
 ```
 
 
@@ -67,3 +65,4 @@ ninja -C tgt clang-format
 ### 
 
 https://packages.microsoft.com/ubuntu/24.04/prod/pool/main/libm/libmsquic/
+

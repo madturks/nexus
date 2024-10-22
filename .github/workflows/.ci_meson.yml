@@ -43,7 +43,7 @@ jobs:
       - name: Build Project
         run: meson compile -C tgt
       - name: Run Tests # TODO: Move this to a separate job and add upload build artifacts here 
-        run: meson test -C tgt -v
+        run: meson test -C tgt --test-args='--gtest_shuffle=1 --gtest_repeat=10' -v --repeat=10
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails

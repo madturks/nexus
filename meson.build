@@ -1,58 +1,12 @@
 # The project's meson file.
-
 project(
     'nexus',
     'cpp',
     version: '0.0.0',
-    default_options: [
-        'cpp_std=c++23',
-        'cpp_compiler=clang++-18',
-        'cpp_rtti=false',
-        #'b_sanitize=leak',
-        'b_lundef=false',
-    ],
     license: 'GPL',
 )
 
-# Project-level macro definitions goes here
-add_project_arguments('-DFMT_HEADER_ONLY=1', language: 'cpp')
-add_project_arguments('-DCXXOPTS_NO_RTTI=1', language: 'cpp')
-
 compiler = meson.get_compiler('cpp')
-
-clang_compiler_flags = [
-    '-stdlib=libc++',
-    '-Wno-c++98-compat-pedantic',
-    '-Weverything',
-    '-Wno-switch-default',
-    '-Wno-exit-time-destructors',
-    '-Wno-padded',
-    '-fsafe-buffer-usage-suggestions',
-    '-Wno-unsafe-buffer-usage',
-    '-Wno-documentation',
-    '-Wno-c++20-compat',
-    '-Wno-gnu-zero-variadic-macro-arguments',
-    '-Wno-missing-prototypes',
-    '-Wno-documentation-unknown-command',
-    '-Wno-reserved-identifier',
-    '-Wno-global-constructors',
-    '-Wno-switch-enum',
-    # Use absolute file paths on diagnostic messages.
-    '-fdiagnostics-absolute-paths',
-    '-fexperimental-library',
-]
-
-clang_linker_flags = ['-stdlib=libc++']
-
-if compiler.get_id() == 'clang'
-    foreach flag : clang_compiler_flags
-        add_project_arguments(flag, language: 'cpp')
-    endforeach
-
-    foreach flag : clang_linker_flags
-        add_project_link_arguments(flag, language: 'cpp')
-    endforeach
-endif
 
 # The project uses conan as a dependency manager. Call conan to fetch the dependencies.
 conan_profile = meson.project_source_root() + '/.config/conan-profiles/' + compiler.get_id()

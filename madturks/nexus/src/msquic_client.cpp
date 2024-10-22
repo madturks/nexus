@@ -3,9 +3,9 @@
 #include <mad/macros.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>
 #include <mad/nexus/quic_base.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_stream.hpp>
 
 #include <msquic.hpp>
 
@@ -105,14 +105,15 @@ struct MsQuicClientCallbacks {
                                    MsQuic->StreamClose(static_cast<HQUIC>(sp));
                                } },
                              scbs)
-            .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
+            .and_then([&](auto && v) noexcept
+                      -> result<std::reference_wrapper<stream>> {
                 MAD_LOG_DEBUG_I(client, "Client peer stream started!");
                 MsQuic->SetCallbackHandler(
                     new_stream, reinterpret_cast<void *>(StreamCallback),
                     static_cast<void *>(&v.get()));
-                return std::move(v);
+                return v;
             })
-            .transform([](auto &&) {
+            .transform([](auto &&) noexcept {
                 return QUIC_STATUS_SUCCESS;
             })
             .value();
@@ -265,7 +266,7 @@ auto msquic_client::connect(std::string_view target,
         application.registration(), MsQuicCleanUpMode::CleanUpManual,
         &MsQuicClientCallbacks::ClientConnectionCallback, this);
 
-    auto & connection = *reinterpret_cast<MsQuicConnection *>(ptr.get());
+    auto & connection = *ptr.get();
 
     if (!connection.IsValid()) {
         return std::unexpected(

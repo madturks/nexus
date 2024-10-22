@@ -65,7 +65,7 @@ public:
     }
 
     mad::log_printer uut{ "console" };
-    value_provider vp;
+    value_provider vp{};
 };
 
 TEST_P(log_level_fixture, level_check_happy_path) {
@@ -107,7 +107,7 @@ public:
     }
 
     mad::log_printer uut{ "console" };
-    value_provider vp;
+    value_provider vp{};
 };
 
 TEST_F(log_fixture, cause_format_exception) {

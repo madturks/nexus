@@ -22,7 +22,9 @@
     "search.useIgnoreFiles": true,
     "search.exclude": {
         "tgt/**": true,
-        "vendor/**": true
+        "vendor/**": true,
+        ".gdbinit": true,
+        ".clang-*": true
     },
     "C_Cpp.default.compileCommands": "/workspace/madturks/nexus/tgt/compile_commands.json",
     "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
