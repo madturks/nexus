@@ -62,7 +62,9 @@ struct send_buffer {
 
     std::uint32_t encoded_data_size() const noexcept {
         MAD_EXPECTS(size() >= sizeof(std::uint32_t));
-        return *reinterpret_cast<const std::uint32_t *>(buf + offset);
+        std::uint32_t val{};
+        std::memcpy(&val, buf + offset, sizeof(val));
+        return val;
     }
 
     std::span<std::uint8_t> data_span() const noexcept {

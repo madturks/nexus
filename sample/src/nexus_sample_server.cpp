@@ -3,19 +3,15 @@
 #include <mad/log_printer.hpp>
 #include <mad/macro>
 #include <mad/nexus/quic.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_stream.hpp>
 #include <mad/nexus/schemas/chat_generated.h>
 #include <mad/nexus/schemas/main_generated.h>
 #include <mad/nexus/schemas/monster_generated.h>
 
 #include <cxxopts.hpp>
-#include <flatbuffers/default_allocator.h>
-#include <flatbuffers/detached_buffer.h>
 #include <flatbuffers/flatbuffer_builder.h>
-#include <flatbuffers/flatbuffers.h>
-#include <fmt/format.h>
 
 #include <cassert>
 #include <chrono>
@@ -60,10 +56,9 @@ struct session {
 
     void start_streams() {
         for (auto i = 0u; i < kStreamCount; i++) {
-            if (auto r = server.open_stream(connection_context,
-                                            mad::nexus::stream_data_callback_t{
-                                                &stream_data_received, this });
-                !r) {
+            if (!server.open_stream(
+                    connection_context, mad::nexus::stream_data_callback_t{
+                                            &stream_data_received, this })) {
                 continue;
             }
         }
@@ -123,11 +118,11 @@ struct session {
     mad::nexus::quic_server & server;
     mad::nexus::connection & connection_context;
 
-    std::stop_source stop_source;
-    std::vector<std::jthread> threads;
+    std::stop_source stop_source{};
+    std::vector<std::jthread> threads{};
     mad::concurrent<std::unordered_map<
         std::uint64_t, std::reference_wrapper<mad::nexus::stream>>>
-        streams;
+        streams{};
 };
 
 static mad::concurrent<std::unordered_map<std::uint64_t, session>> connections;
@@ -273,7 +268,7 @@ int main(int argc, char * argv []) {
 
         if (!result) {
             const auto & error = result.error();
-            MAD_LOG_ERROR_I(logger, "QUIC server listen failed: {}, {}",
+            MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
                             error.value(), error.message());
             return error.value();
         }

@@ -12,40 +12,15 @@
  * The global MSQUIC api object, used by the MSQUIC C++
  * API, and nexus MSQUIC based implementation.
  */
-const MsQuicApi * MsQuic;
-
-namespace {
-
-/**
- * Wrapper type for automatically managing the lifetime
- * of the global MsQuic API object.
- *
- * This struct is intended to be used in junction with
- * shared_ptr/weak_ptr's to tie the lifetime to different
- * instances of the msquic_application.
- */
-struct msquic_auto_init {
-    msquic_auto_init() {
-        MAD_EXPECTS(nullptr == MsQuic);
-        MsQuic = new (std::nothrow) MsQuicApi();
-        MAD_ENSURES(nullptr != MsQuic);
-    }
-
-    ~msquic_auto_init() {
-        MAD_EXPECTS(nullptr != MsQuic);
-        delete MsQuic;
-        MsQuic = nullptr;
-        MAD_ENSURES(nullptr == MsQuic);
-    }
-};
-
+const MsQuicApi * MsQuic{ nullptr };
 /**
  * This is a weak pointer to hold a reference to msquic_auto_init
  * object if it's already been initialized.
  */
-static std::weak_ptr<void> auto_init_obj;
+static std::weak_ptr<void> auto_init_obj{};
 
-MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
+static MsQuicSettings
+settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
     MsQuicSettings settings{};
 
     // Configures the server's idle timeout.
@@ -66,7 +41,6 @@ MsQuicSettings settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
 
     return settings;
 }
-} // namespace
 
 namespace mad::nexus {
 std::unique_ptr<quic_application>
@@ -81,6 +55,29 @@ msquic_application::msquic_application(const quic_configuration & cfg) :
 
     // MSQUIC API init
     {
+        /**
+         * Wrapper type for automatically managing the lifetime
+         * of the global MsQuic API object.
+         *
+         * This struct is intended to be used in junction with
+         * shared_ptr/weak_ptr's to tie the lifetime to different
+         * instances of the msquic_application.
+         */
+        struct msquic_auto_init {
+            msquic_auto_init() noexcept {
+                MAD_EXPECTS(nullptr == MsQuic);
+                MsQuic = new (std::nothrow) MsQuicApi();
+                MAD_ENSURES(nullptr != MsQuic);
+            }
+
+            ~msquic_auto_init() noexcept {
+                MAD_EXPECTS(nullptr != MsQuic);
+                delete MsQuic;
+                MsQuic = nullptr;
+                MAD_ENSURES(nullptr == MsQuic);
+            }
+        };
+
         /**
          * Check if the MsQuic API has been initialized already.
          *
@@ -171,12 +168,12 @@ std::unique_ptr<quic_client> msquic_application::make_client() {
 
 const MsQuicRegistration & msquic_application::registration() const {
     MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
-    return *static_cast<MsQuicRegistration *>(registration_ptr.get());
+    return *registration_ptr.get();
 }
 
 const MsQuicConfiguration & msquic_application::configuration() const {
     MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
-    return *static_cast<MsQuicConfiguration *>(configuration_ptr.get());
+    return *configuration_ptr.get();
 }
 
 } // namespace mad::nexus

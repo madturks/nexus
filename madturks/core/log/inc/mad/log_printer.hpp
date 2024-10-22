@@ -76,7 +76,7 @@ public:
     /**
      * Destructor
      */
-    ~log_printer();
+    virtual ~log_printer();
 
     /**
      * @brief Populate global logger registry from configuration file
@@ -396,12 +396,12 @@ private:
     /**
      * @brief Spdlog logger object
      */
-    mutable std::shared_ptr<void> logger_instance;
+    mutable std::shared_ptr<void> logger_instance{};
 
     /**
      * @brief Current log level
      */
-    log_level current_level;
+    log_level current_level{ mad::log_level::info };
 };
 } // namespace mad
 

@@ -47,12 +47,12 @@ private:
      */
     msquic_application(const struct quic_configuration & cfg);
 
-    std::shared_ptr<void> api_ptr;
+    std::shared_ptr<void> api_ptr{};
 
     // The MSQUIC registration object.
-    std::shared_ptr<MsQuicRegistration> registration_ptr;
+    std::shared_ptr<MsQuicRegistration> registration_ptr{};
     // The MSQUIC configuration object.
-    std::shared_ptr<MsQuicConfiguration> configuration_ptr;
+    std::shared_ptr<MsQuicConfiguration> configuration_ptr{};
 };
 
 } // namespace mad::nexus

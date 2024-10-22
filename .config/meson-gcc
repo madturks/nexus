@@ -2,3 +2,29 @@
 c = 'gcc-14'
 cpp = 'g++-14'
 c_ld = 'ld'
+pkg-config = 'pkg-config'
+
+[built-in options]
+buildtype = 'debug'
+warning_level = 'everything'
+b_sanitize='address,undefined'
+b_lundef=false
+b_colorout='always'
+cpp_std='c++23'
+cpp_rtti = false
+# cpp_debugstl = true
+cpp_args = [
+    '-Wno-attributes',
+    '-Wno-abi-tag',
+    '-Wno-switch-default',
+    '-Wno-padded',
+    '-Wno-multiple-inheritance',
+    '-Wno-virtual-inheritance',
+    '-Wno-redundant-tags',
+    '-Wno-switch-enum',
+    '-Wno-conditionally-supported',
+    '-Wno-missing-declarations',
+    '-Wno-cast-align',
+    '-DFMT_HEADER_ONLY=1',
+    '-DCXXOPTS_NO_RTTI=1',]
+# cpp_link_args = ['-stdlib=libc++']

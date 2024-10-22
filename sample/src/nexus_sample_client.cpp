@@ -2,7 +2,7 @@
 #include <mad/nexus/quic.hpp>
 #include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_configuration.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/result.hpp>
 #include <mad/nexus/schemas/chat_generated.h>

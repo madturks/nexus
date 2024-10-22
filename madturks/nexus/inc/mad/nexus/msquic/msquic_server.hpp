@@ -3,7 +3,7 @@
 #include <mad/concurrent.hpp>
 #include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_base.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 #include <mad/nexus/quic_server.hpp>
 #include <mad/nexus/shared_ptr_raw_equal.hpp>
@@ -22,9 +22,9 @@ class msquic_server final : virtual public quic_server,
         std::unordered_map<std::shared_ptr<void>, connection,
                            shared_ptr_raw_hash, shared_ptr_raw_equal>;
 
-    std::shared_ptr<void> listener_opaque;
+    std::shared_ptr<void> listener_opaque{};
     // Might be moved to quic_server?
-    mad::concurrent<connection_map_t> connection_map;
+    mad::concurrent<connection_map_t> connection_map{};
 
 public:
     const msquic_application & application;

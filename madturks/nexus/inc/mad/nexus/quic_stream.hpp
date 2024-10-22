@@ -37,7 +37,7 @@ struct stream : public serial_number_carrier,
      * @param receive_buffer_size Size of the receive circular buffer.
      * @param send_buffer_size  Size of the send circular buffer.
      */
-    stream(void * hstream, connection & cctx, stream_callbacks cbks,
+    stream(void * hstream, struct connection & cctx, stream_callbacks cbks,
            std::size_t receive_buffer_size = 32768) :
         handle_carrier(hstream), connection_context_(cctx), callbacks(cbks),
         receive_buffer(

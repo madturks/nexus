@@ -3,8 +3,8 @@
 #include <mad/macro>
 #include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_configuration.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
-#include <mad/nexus/quic_stream_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
+#include <mad/nexus/quic_stream.hpp>
 #include <mad/nexus/result.hpp>
 #include <mad/nexus/send_buffer.hpp>
 
@@ -167,27 +167,27 @@ protected:
         /**
          * Invoked when a new connection is established.
          */
-        connection_callback_t on_connected;
+        connection_callback_t on_connected{};
         /**
          * Invoked when a connection is disconnected and about
          * to be destroyed.
          */
-        connection_callback_t on_disconnected;
+        connection_callback_t on_disconnected{};
 
         /**
          * Invoked when a new stream is started.
          */
-        stream_callback_t on_stream_start;
+        stream_callback_t on_stream_start{};
 
         /**
          * Invoked when a stream is about to be destroyed.
          */
-        stream_callback_t on_stream_close;
+        stream_callback_t on_stream_close{};
 
         /**
          * Invoked when data is received from a stream.
          */
-        stream_data_callback_t on_stream_data_received;
-    } callbacks;
+        stream_data_callback_t on_stream_data_received{};
+    } callbacks{};
 };
 } // namespace mad::nexus

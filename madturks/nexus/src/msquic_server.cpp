@@ -3,7 +3,7 @@
 #include <mad/log>
 #include <mad/macro>
 #include <mad/nexus/msquic/msquic_server.hpp>
-#include <mad/nexus/quic_connection_context.hpp>
+#include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
 
 #include <flatbuffers/detached_buffer.h>

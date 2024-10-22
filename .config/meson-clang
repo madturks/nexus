@@ -3,3 +3,38 @@ c = 'clang-18'
 cpp = 'clang++-18'
 c_ld = 'lld-18'
 pkg-config = 'pkg-config'
+
+[built-in options]
+buildtype = 'debug'
+warning_level = 'everything'
+b_sanitize='address,undefined'
+b_lundef=false
+b_colorout='always'
+cpp_std='c++23'
+cpp_rtti = false
+# cpp_debugstl = true
+cpp_args = [
+    '-stdlib=libc++',
+    '-Wno-c++98-compat-pedantic',
+    '-Wno-switch-default',
+    '-Wno-exit-time-destructors',
+    '-Wno-padded',
+    '-fsafe-buffer-usage-suggestions',
+    '-Wno-unsafe-buffer-usage',
+    '-Wno-documentation',
+    '-Wno-c++20-compat',
+    '-Wno-gnu-zero-variadic-macro-arguments',
+    '-Wno-missing-prototypes',
+    '-Wno-documentation-unknown-command',
+    '-Wno-reserved-identifier',
+    '-Wno-global-constructors',
+    '-Wno-switch-enum',
+    '-fdiagnostics-absolute-paths',
+    '-fexperimental-library',
+    '-DFMT_HEADER_ONLY=1',
+    '-DCXXOPTS_NO_RTTI=1',
+    '-U_LIBCPP_HARDENING_MODE',
+    '-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG']
+cpp_link_args = ['-stdlib=libc++']
+
+
