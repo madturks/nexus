@@ -34,7 +34,8 @@ cpp_args = [
     '-DFMT_HEADER_ONLY=1',
     '-DCXXOPTS_NO_RTTI=1',
     '-U_LIBCPP_HARDENING_MODE',
-    '-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG']
+    '-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG'
+    ]
 cpp_link_args = ['-stdlib=libc++']
 
 

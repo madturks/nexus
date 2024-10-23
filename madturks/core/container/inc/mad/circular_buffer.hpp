@@ -1,36 +1,20 @@
-/**
- * ______________________________________________________
- *
- * @file 		circular_buffer_regular.hpp
- * @project 	spectre/kol-framework/
- * @author 		mkg <hello@mkg.dev>
- * @date 		17.10.2019
- *
- * @brief
- *
- * @disclaimer
- * This file is part of SPECTRE MMORPG game server project.
- * Unauthorized copying of this file, via any medium is strictly prohibited
- * Proprietary and confidential
- *
- * @copyright		2012-2019 Mustafa K. GILOR, All rights reserved.
- *
- * ______________________________________________________
- */
+// Copyright 2024 The Madturks Organization
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
 
-// proj
 #include <mad/circular_buffer_base.hpp>
 #include <mad/concepts>
 
-// cppstd
 #include <array>
 #include <cassert>
 #include <cstring>
 
 namespace mad {
 
+/**
+ * Basic circular buffer implementation.
+ */
 class circular_buffer : public circular_buffer_base {
 public:
     inline size_t empty_space() const noexcept {

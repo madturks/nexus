@@ -1,3 +1,10 @@
+/******************************************************
+ * quic_client implementation with MSQUIC.
+ *
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/log_macros.hpp>
 #include <mad/log_printer.hpp>
 #include <mad/macros.hpp>
@@ -12,19 +19,44 @@
 #include <utility>
 
 namespace mad::nexus {
+
+// This function is defined in msquic_base.cpp.
 QUIC_STATUS
 StreamCallback(HQUIC stream, void * context, QUIC_STREAM_EVENT * event);
 
+/******************************************************
+ * The type aliases for the connection events handled by
+ * the callback functions. They don't have a named type
+ * (anonymous) so the code uses decltype() to determine
+ * the type and give them a nice name.
+ ******************************************************/
+namespace events {
+    using peer_stream_started =
+        decltype(QUIC_CONNECTION_EVENT::PEER_STREAM_STARTED);
+    using connected = decltype(QUIC_CONNECTION_EVENT::CONNECTED);
+    using shutdown_complete =
+        decltype(QUIC_CONNECTION_EVENT::SHUTDOWN_COMPLETE);
+}; // namespace events
+
+/******************************************************
+ * The callback functions given to the MSQUIC API functions.
+ * All callbacks are wrapped into a struct to allow them
+ * to access the msquic_client object's private parts.
+ ******************************************************/
 struct MsQuicClientCallbacks {
 
-    /**
-     * @brief Quic stream event type to string conversion
+    /******************************************************
+     * Convert a QUIC_CONNECTION_EVENT_TYPE value to a
+     * human-readable string.
      *
-     * @param eid The stream event type (QUIC_STREAM_EVENT_TYPE)
+     * It is guaranteed for QUIC_CONNECTION_EVENT_TYPE to have
+     * a string representation.
      *
-     * @return constexpr std::string_view The string representation
-     */
-    static constexpr std::string_view quic_connection_event_to_str(int etype) {
+     * @param etype QUIC_CONNECTION_EVENT_TYPE to stringify
+     * @return Enum's string description.
+     ******************************************************/
+    static constexpr std::string_view
+    quic_connection_event_to_str(int etype) noexcept {
         MAD_EXHAUSTIVE_SWITCH_BEGIN
         switch (static_cast<QUIC_CONNECTION_EVENT_TYPE>(etype)) {
             using enum QUIC_CONNECTION_EVENT_TYPE;
@@ -71,26 +103,22 @@ struct MsQuicClientCallbacks {
 #endif
         }
         MAD_EXHAUSTIVE_SWITCH_END
+
+        // If the code reaches here it's a hard failure
+        // because the switch above is meant to be exhaustive.
         std::unreachable();
     }
 
-    using peer_stream_started_event =
-        decltype(QUIC_CONNECTION_EVENT::PEER_STREAM_STARTED);
-    using connected_event = decltype(QUIC_CONNECTION_EVENT::CONNECTED);
-    using shutdown_complete_event =
-        decltype(QUIC_CONNECTION_EVENT::SHUTDOWN_COMPLETE);
-
-    /**
-     * Called when the peer starts a new stream in this connection.
+    /******************************************************
+     * PEER_STREAM_STARTED event handler
      *
-     * @param client The owning client
-     * @param event Peer stream started event details
-     *
-     * @return QUIC_STATUS Return code indicating callback result
-     */
+     * @param client The client, who owns the event source
+     * @param event Event details
+     * @return QUIC_SUCCESS
+     ******************************************************/
     static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventPeerStreamStarted(
-        msquic_client & client, const peer_stream_started_event & event) {
-        assert(client.connection_ctx);
+        msquic_client & client, const events::peer_stream_started & event) {
+        assert(client.connection);
         auto new_stream = event.Stream;
 
         stream_callbacks scbs = {
@@ -99,7 +127,7 @@ struct MsQuicClientCallbacks {
             .on_data_received = client.callbacks.on_stream_data_received
         };
 
-        return client.connection_ctx
+        return client.connection
             ->add_new_stream({ new_stream,
                                [](void * sp) {
                                    MsQuic->StreamClose(static_cast<HQUIC>(sp));
@@ -119,18 +147,17 @@ struct MsQuicClientCallbacks {
             .value();
     }
 
-    /**
-     * Connection connected event callback function
+    /******************************************************
+     * CONNECTED event handler
      *
-     * @param connection The connection
-     * @param client The owning client
-     * @param event Connected event details
-     *
-     * @return QUIC_STATUS Return code indicating callback result
-     */
+     * @param msquic_conn MsQuicConnection object
+     * @param client The client, who owns the event source
+     * @param event Event details
+     * @return QUIC_SUCCESS
+     ******************************************************/
     static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventConnected(
         MsQuicConnection & msquic_conn, msquic_client & client,
-        const connected_event & event) {
+        const events::connected & event) {
 
         MAD_LOG_INFO_I(client,
                        "Client connected, resumed?: {}, negotiated_alpn: {}",
@@ -138,26 +165,23 @@ struct MsQuicClientCallbacks {
                        std::string_view{
                            reinterpret_cast<const char *>(event.NegotiatedAlpn),
                            event.NegotiatedAlpnLength });
-        client.connection_ctx = std::make_unique<connection>(&msquic_conn);
+        client.connection = std::make_unique<connection>(&msquic_conn);
         assert(client.callbacks.on_connected);
-        client.callbacks.on_connected(*(client.connection_ctx.get()));
+        client.callbacks.on_connected(*(client.connection.get()));
 
         return QUIC_STATUS_SUCCESS;
     }
 
-    /**
-     * @brief Callback function for connection shutdown.
+    /******************************************************
+     * SHUTDOWN_COMPLETE event handler
      *
-     * It is called when a connection is completely closed and being
-     * destructed.
      *
-     * @param client msquic_client associated with the shutdown connection
-     * @param event Shutdown complete event details
-     *
-     * @return QUIC_STATUS Return code indicating callback result
-     */
+     * @param client The client, who owns the event source
+     * @param event Event details
+     * @return QUIC_SUCCESS
+     ******************************************************/
     static MAD_ALWAYS_INLINE QUIC_STATUS ClientConnectionEventShutdownComplete(
-        msquic_client & client, const shutdown_complete_event & event) {
+        msquic_client & client, const events::shutdown_complete & event) {
         MAD_LOG_DEBUG_I(client,
                         "ClientConnectionEventShutdownComplete - "
                         "HandshakeCompleted?:{} "
@@ -166,24 +190,25 @@ struct MsQuicClientCallbacks {
                         event.PeerAcknowledgedShutdown,
                         event.AppCloseInProgress);
         // TODO: Invoke on_client_disconnect callback?
-        if (client.connection_ctx) {
-            client.callbacks.on_disconnected(*(client.connection_ctx.get()));
-            client.connection_ctx.reset(nullptr);
+        if (client.connection) {
+            client.callbacks.on_disconnected(*(client.connection.get()));
+            client.connection.reset(nullptr);
         }
-        // FIXME: Reset connection ptr!
+
+        MAD_ENSURES(nullptr == client.connection);
         return QUIC_STATUS_SUCCESS;
     }
 
-    /**
-     * @brief The client connection event callback dispatcher.
+    /******************************************************
+     * The event dispatcher function.
+     * Dispatches connection events to event handlers.
      *
-     * @param connection The connection that is source of the event
-     * @param context The context associated with the connection
-     * (msquic_client)
-     * @param event The event (what happened)
-     *
-     * @return QUIC_STATUS Return code indicating callback result
-     */
+     * @param connection The connection
+     * @param context Callback context (msquic_client)
+     * @param event Event details
+     * @return Event handler's result when event is handled
+     *         QUIC_STATUS_NOT_SUPPORTED otherwise.
+     ******************************************************/
     static QUIC_STATUS ClientConnectionCallback(MsQuicConnection * connection,
                                                 void * context,
                                                 QUIC_CONNECTION_EVENT * event) {
@@ -254,10 +279,16 @@ struct MsQuicClientCallbacks {
     }
 };
 
+/******************************************************/
+
 msquic_client::msquic_client(const msquic_application & app) :
     msquic_base(), application(app) {}
 
+/******************************************************/
+
 msquic_client::~msquic_client() = default;
+
+/******************************************************/
 
 auto msquic_client::connect(std::string_view target,
                             std::uint16_t port) -> result<> {
@@ -266,21 +297,27 @@ auto msquic_client::connect(std::string_view target,
         application.registration(), MsQuicCleanUpMode::CleanUpManual,
         &MsQuicClientCallbacks::ClientConnectionCallback, this);
 
-    auto & connection = *ptr.get();
+    auto & conn = *ptr.get();
 
-    if (!connection.IsValid()) {
+    if (!conn.IsValid()) {
         return std::unexpected(
             quic_error_code::connection_initialization_failed);
     }
 
     auto target_str = std::string{ target };
-    if (QUIC_FAILED(connection.Start(
+    if (QUIC_FAILED(conn.Start(
             application.configuration(), target_str.c_str(), port))) {
         return std::unexpected(quic_error_code::connection_start_failed);
     }
 
-    connection_ptr = ptr;
+    msquic_connection_ptr = ptr;
 
     return {};
+}
+
+/******************************************************/
+
+auto msquic_client::disconnect() -> result<> {
+    return std::unexpected(quic_error_code::not_yet_implemented);
 }
 } // namespace mad::nexus

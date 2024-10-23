@@ -1,31 +1,8 @@
-/**
- * ______________________________________________________
- *
- * @file 		circular_buffer_p2.hpp
- * @project 	spectre/kol-framework/
- * @author 		mkg <hello@mkg.dev>
- * @date 		26.10.2019
- *
- * @brief
- *
- * @disclaimer
- * This file is part of SPECTRE MMORPG game server project.
- * Unauthorized copying of this file, via any medium is strictly prohibited
- * Proprietary and confidential
- *
- * @copyright		2012-2019 Mustafa K. GILOR, All rights reserved.
- *
- * ______________________________________________________
- */
-
 #pragma once
 
-// proj
 #include <mad/circular_buffer_base.hpp>
 #include <mad/concepts>
-// xproj
 
-// cppstd
 #include <cassert>
 
 namespace mad {

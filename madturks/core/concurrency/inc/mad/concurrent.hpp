@@ -1,55 +1,15 @@
-/**
- * ______________________________________________________
- *
- * @file 		concurrent_resource.hpp
- * @project 	spectre/framework/
- * @author 		mkg <hello@mkg.dev>
- * @date 		15.09.2019
- *
- * @brief
- *
- * @disclaimer
- * This file is part of SPECTRE MMORPG game server project.
- * Unauthorized copying of this file, via any medium is strictly prohibited
- * Proprietary and confidential
- *
- * @copyright	2012-2019 Mustafa K. GILOR, All rights reserved.
- *
- * ______________________________________________________
- */
 #pragma once
 
-#if !defined(SPECTRE_CONCURRENT_RESOURCE_USE_BOOST_SHARED_MUTEX) &&            \
-    (__cplusplus >= 201703L)
+#include <mad/concepts>
+
 #include <mutex>
 #include <shared_mutex> // prerequisite : C++17
 
 namespace mad {
+
 using shared_mutex_t = std::shared_mutex;
 using read_lock = std::shared_lock<shared_mutex_t>;
 using write_lock = std::unique_lock<shared_mutex_t>;
-} // namespace mad
-
-#else
-#include <boost/thread/shared_mutex.hpp>
-
-namespace mad {
-using shared_mutex_t = boost::shared_mutex;
-using read_lock = boost::shared_lock<shared_mutex_t>;
-using write_lock = boost::unique_lock<shared_mutex_t>;
-// boost's rwlock implementation has two additional lock kinds, which can be
-// useful in several scenarios.
-using upgrade_lock = boost::upgrade_lock<shared_mutex_t>;
-using upgrade_to_write_lock = boost::upgrade_to_unique_lock<shared_mutex_t>;
-} // namespace mad
-
-#define SPECTRE_LOCKABLE_USING_BOOST
-#endif
-
-// xproj
-#include <mad/concepts>
-
-namespace mad {
 
 /**
  * @brief Library implementation details.

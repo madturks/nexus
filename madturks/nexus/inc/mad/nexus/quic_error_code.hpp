@@ -29,7 +29,8 @@ enum class quic_error_code : std::int32_t
     connection_already_exists,
     connection_emplace_failed,
     connection_does_not_exists,
-    send_failed
+    send_failed,
+    not_yet_implemented
 };
 
 struct quic_error_code_category : std::error_category {

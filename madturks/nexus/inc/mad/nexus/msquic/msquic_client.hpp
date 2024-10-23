@@ -1,3 +1,9 @@
+/******************************************************
+ * MSQUIC-based client implementation.
+ *
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <mad/nexus/msquic/msquic_application.hpp>
@@ -7,23 +13,79 @@
 
 namespace mad::nexus {
 
+/******************************************************
+ * QUIC client implementation using MSQUIC.
+ *
+ * The class implements the quic_client interface. The
+ * common interface between msquic_client and msquic_server
+ * are implemented in the msquic_base class. This is why
+ * quic_base class is inherited using virtual inheritance.
+ *
+ ******************************************************/
 class msquic_client final : public quic_client,
                             public msquic_base {
 public:
-    friend struct MsQuicClientCallbacks;
+    /******************************************************
+     * Destroy the msquic client object
+     ******************************************************/
     virtual ~msquic_client() override;
 
+    /******************************************************
+     * Connect to the target endpoint.
+     *
+     * @param target Target hostname or IP address
+     * @param port The port number
+     * @return
+     ******************************************************/
     virtual auto connect(std::string_view target,
                          std::uint16_t port) -> result<> override;
 
-    std::unique_ptr<connection> connection_ctx{};
-
-    const msquic_application & application;
+    /******************************************************
+     * Disconnect from the currently connected endpoint.
+     *
+     * @return true if disconnected, error code on failure
+     ******************************************************/
+    virtual auto disconnect() -> result<> override;
 
 private:
+    /******************************************************
+     * The callbacks are initiated by the client and they
+     * need to be able to access the connection_ctx to update
+     * the connection state.
+     ******************************************************/
+    friend struct MsQuicClientCallbacks;
+
+    /******************************************************
+     * msquic_application::make_client is the factory method
+     * that creates the msquic_client objects. It's the only
+     * way for a API consumer to create a msquic client.
+     ******************************************************/
     friend std::unique_ptr<quic_client> msquic_application::make_client();
+
+    /******************************************************
+     * The application that client belongs to.
+     ******************************************************/
+    const msquic_application & application;
+
+    /******************************************************
+     * Construct a new msquic client object.
+     *
+     * The constructor is marked private because we don't
+     * want clients to be able to directly instantiate this
+     * class.
+     *
+     * @param app The MSQUIC application
+     ******************************************************/
     msquic_client(const msquic_application & app);
 
-    std::shared_ptr<void> connection_ptr{};
+    /******************************************************
+     * The client's connection object.
+     ******************************************************/
+    std::unique_ptr<struct connection> connection{};
+
+    /******************************************************
+     * The backing MSQUIC connection.
+     ******************************************************/
+    std::shared_ptr<void> msquic_connection_ptr{};
 };
 } // namespace mad::nexus
