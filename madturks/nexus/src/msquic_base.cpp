@@ -414,6 +414,7 @@ auto msquic_base::send(stream & sctx,
     if (auto status = MsQuic->StreamSend(
             sctx.handle_as<HQUIC>(), qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf);
         QUIC_FAILED(status)) {
+        MAD_LOG_ERROR("stream send failed!");
         return std::unexpected(quic_error_code::send_failed);
     }
     // The object is in use by MSQUIC.

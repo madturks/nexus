@@ -31,5 +31,28 @@
     "terminal.integrated.scrollback": 100000,
     "debug.terminal.clearBeforeReusing": true,
     "terminal.integrated.shellIntegration.enabled": true,
-    "terminal.integrated.stickyScroll.enabled": true
+    "terminal.integrated.stickyScroll.enabled": true,
+    "doxdocgen.generic.includeTypeAtReturn": false,
+    "doxdocgen.file.copyrightTag": [
+        "Copyright (c) {year} The Madturks Organization",
+        "SPDX-License-Identifier: GPL-3.0-or-later"
+    ],
+    "doxdocgen.file.fileOrder": [
+        "brief",
+        "copyright",
+    ],
+    "doxdocgen.generic.order": [
+        "empty",
+        "brief",
+        "empty",
+        "tparam",
+        "param",
+        "return",
+        "custom"
+    ],
+    "doxdocgen.generic.briefTemplate": "{text}",
+    "doxdocgen.c.firstLine": "/******************************************************",
+    "doxdocgen.c.lastLine": "******************************************************/",
+    "editor.fontFamily": "'Ubuntu Mono', 'monospace', monospace"
+    
 }

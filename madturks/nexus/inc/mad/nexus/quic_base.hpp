@@ -128,7 +128,7 @@ public:
     template <typename F>
     static auto build_message(F && callable) -> send_buffer<true> {
         // Each thread gets its own builder.
-        thread_local ::flatbuffers::FlatBufferBuilder fbb;
+        thread_local ::flatbuffers::FlatBufferBuilder fbb(1024 * 1024);
 
         // Align the buffer properly.
         fbb.PreAlign(send_buffer<true>::k_QuicBufStructSize,

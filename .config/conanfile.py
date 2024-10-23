@@ -4,6 +4,9 @@ class Nexus(ConanFile):
     name = "nexus"
     version = "0.0.0"
     generators = "PkgConfigDeps"
+    default_options = {
+        "gperftools/*:shared": True,
+    }
 
     def requirements(self):
         self.requires("spdlog/1.14.1")
@@ -12,8 +15,7 @@ class Nexus(ConanFile):
         self.requires("flatbuffers/24.3.25")
         self.requires("stduuid/1.2.3")
         self.requires("cxxopts/3.2.0")
-        #self.requires("abseil/20240722.0")
-        
+        self.requires("gperftools/2.16")
 
     def build_requirements(self):
         self.test_requires("gtest/1.15.0")

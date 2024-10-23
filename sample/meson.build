@@ -6,7 +6,7 @@ executable(
     dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas, cxxopts],
 )
 
-executable(
+ executable(
     'nexus-sample-client',
     'src/nexus_sample_client.cpp',
     dependencies: [nexus, madturks_core_log, flatbuffers, fbs_schemas, cxxopts],

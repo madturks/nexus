@@ -11,7 +11,7 @@ compiler = meson.get_compiler('cpp')
 # The project uses conan as a dependency manager. Call conan to fetch the dependencies.
 conan_profile = meson.project_source_root() + '/.config/conan-profiles/' + compiler.get_id()
 message('Running `conan` with profile: @0@'.format(conan_profile))
-run_command(
+v = run_command(
     'conan',
     'install',
     '--output-folder', '/opt/conan-pkg-root',
@@ -19,7 +19,9 @@ run_command(
     '--build=missing',
     '--profile:all=' + conan_profile,
     check: true,
+    capture: true
 )
+message(v.stdout())
 
 # Conan emits dependency files using pkg-config format and the code overrides
 # PKG_CONFIG_PATH with /opt/conan-pkg-root in devcontainer.json, therefore the
@@ -32,6 +34,13 @@ gtest = dependency('gtest_main', include_type: 'system')
 gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
+tcmalloc = dependency('libtcmalloc_minimal', include_type: 'system', static : false)
+
+# For some unknown reason, meson does not seem to add the tcmalloc_libdir
+# to RPATH, so the code below does exactly that.
+tcmalloc_libdir = tcmalloc.get_variable(pkgconfig: 'libdir')
+add_project_dependencies(tcmalloc, language: 'cpp')
+add_project_link_arguments('-Wl,-rpath,' + tcmalloc_libdir, language: 'cpp')
 
 # msquic is a vendored library, and we have to declare it manually since it
 # does not have a pkg-config file.

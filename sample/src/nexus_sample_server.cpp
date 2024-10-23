@@ -25,7 +25,7 @@
 
 struct session {
 
-    static constexpr auto kStreamCount = 10;
+    static constexpr auto kStreamCount = 1;
     static constexpr auto kThreadCount = 32;
     static constexpr auto kThreadSleepAmountMs =
         std::chrono::milliseconds{ 10 };
@@ -77,7 +77,7 @@ struct session {
             {
                 auto streams_e = streams.exclusive_access();
                 for (auto & [str, stream] : streams_e) {
-                    (void) quic_server.send(
+                    [[maybe_unused]] auto v = quic_server.send(
                         stream.get(),
                         quic_server.build_message(
                             [](::flatbuffers::FlatBufferBuilder & fbb) {
@@ -130,6 +130,7 @@ static mad::concurrent<std::unordered_map<std::uint64_t, session>> connections;
 static std::string message = "hello from the other side";
 
 static mad::log_printer logger{ "console" };
+static std::stop_source stop_src{};
 
 static void server_on_connected(void * uctx, mad::nexus::connection & cctx) {
     assert(uctx);
@@ -276,8 +277,22 @@ int main(int argc, char * argv []) {
         MAD_LOG_INFO_I(
             logger, "QUIC server is listening for incoming connections.");
         MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
+
+        std::thread{ []() {
+            while (!stop_src.get_token().stop_requested()) {
+                MAD_LOG_INFO_I(logger, "{} sends are still in flight.",
+                               mad::nexus::stream::sends_in_flight.load());
+                //   MAD_LOG_INFO_I(logger, "mem: {} / {}.",
+                //                mem_usage.load(), mem_usage_arr.load());
+                std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
+                // malloc_trim(0);
+            }
+        } }.detach();
         getchar();
+
+        stop_src.request_stop();
     }
+
     {
         auto map = connections.exclusive_access();
         map->clear();

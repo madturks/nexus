@@ -15,7 +15,7 @@
 			"packages": "cmake gcc-14 g++-14 llvm-18 lld-18 clang-18 libclang-rt-18-dev libc++-18-dev libc++abi-18-dev libunwind-18-dev clang-format-18 clang-tidy-18 clangd-18 libclang-18-dev gdb ninja-build nano vim git-extras git-lfs pkg-config libxdp-dev libnl-route-3-200"
 		},
 		"ghcr.io/deep-space-cartel/devcontainers-features/pip:1": {
-			"packages": "meson==1.5.2 conan==2.7.1",
+			"packages": "meson==1.6.0 conan==2.8.1",
 			"location": "/opt/pip/"
 		}
 	},

@@ -65,6 +65,8 @@ std::string quic_error_code_category::message(int condition) const {
             return "Connection already exists.";
         case send_failed:
             return "Send failed.";
+        case not_yet_implemented:
+            return "Not yet implemented.";
     }
 
     MAD_EXHAUSTIVE_SWITCH_END
