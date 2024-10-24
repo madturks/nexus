@@ -1,16 +1,26 @@
+/******************************************************
+ * Automatic serial number for class instances.
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <atomic>
 #include <cstdint>
 
 namespace mad::nexus {
+
+/******************************************************
+ * Base type for providing an automatic serial number
+ * to objects.
+ ******************************************************/
 struct serial_number_carrier {
 
     /**
-     * @brief The connection serial number.
+     * @brief The serial number of the object.
      *
-     * This is an auto-generated value and guaranteed to be unique per
-     * connection object.
+     * This is an auto-generated value and guaranteed to be
+     * unique per object.
      */
     [[nodiscard]] auto serial_number() const noexcept {
         return serial_number_;

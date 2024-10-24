@@ -1,15 +1,12 @@
-/**
+/******************************************************
  * StreamCallbackReceive function integration tests
- *
  * Copyright (c) 2024 The Madturks Organization
  * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-//
+ ******************************************************/
 
 #include <mad/macros.hpp>
+#include <mad/nexus/callback.hpp>
 #include <mad/nexus/quic_base.hpp>
-#include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_stream.hpp>
 #include <mad/nexus/schemas/chat_generated.h>
@@ -114,8 +111,7 @@ struct StreamCallback : public ::testing::Test {
             stream_callbacks{
                              .on_start = {},
                              .on_close = {},
-                             .on_data_received = quic_callback_function{ validator,
-                                                            &called_times } }
+                             .on_data_received = callback{ validator, &called_times } }
         };
 
         std::size_t total_length() const {
@@ -156,7 +152,7 @@ struct StreamCallback : public ::testing::Test {
         result.per_message_size = msg.data_span().size_bytes();
         result.validator = validator;
         result.sctx.callbacks.on_data_received =
-            quic_callback_function{ result.validator, &result.called_times };
+            callback{ result.validator, &result.called_times };
 
         auto remanining_bytes = result.storage.size();
         auto itr = result.storage.begin();

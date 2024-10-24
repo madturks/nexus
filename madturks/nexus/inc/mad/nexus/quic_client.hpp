@@ -6,8 +6,14 @@
 
 namespace mad::nexus {
 
+/******************************************************
+ * QUIC client type.
+ ******************************************************/
 class quic_client : virtual public quic_base {
 public:
+    /******************************************************
+     * Destroy the quic client object
+     ******************************************************/
     virtual ~quic_client() override;
 
     /******************************************************
@@ -15,7 +21,7 @@ public:
      *
      * @param target Target hostname or IP address
      * @param port The port number
-     * @return
+     * @return Result object indicating the outcome.
      ******************************************************/
     [[nodiscard]] virtual auto connect(std::string_view target,
                                        std::uint16_t port) -> result<> = 0;
@@ -23,7 +29,7 @@ public:
     /******************************************************
      * Disconnect from the currently connected endpoint.
      *
-     * @return true if disconnected, error code on failure
+     * @return Result object indicating the outcome.
      ******************************************************/
     [[nodiscard]] virtual auto disconnect() -> result<> = 0;
 };

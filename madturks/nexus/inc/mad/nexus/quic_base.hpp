@@ -1,7 +1,11 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #pragma once
 
 #include <mad/macro>
-#include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_stream.hpp>
@@ -12,15 +16,22 @@
 
 namespace mad::nexus {
 
+/******************************************************
+ * Defines the common interface for the quic_server and
+ * quic_client types.
+ ******************************************************/
 class quic_base {
 public:
+    /******************************************************
+     * The default constructor.
+     ******************************************************/
     quic_base() = default;
 
-    /**
-     * Initialize the needed resources
+    /******************************************************
+     * Perform the initialization of the class instance.
      *
-     * @return std::error_code indicating the status.
-     */
+     * @return Result object indiccating success or failure.
+     ******************************************************/
     [[nodiscard]] virtual result<> init() = 0;
 
     /**
@@ -32,10 +43,22 @@ public:
      *
      * @return stream_context* when successful, std::error_code otherwise.
      */
+
+    /******************************************************
+     * Open a new stream for the given connection.
+     *
+     * @param [in] connection The connection
+     * @param [in] data_callback (optional) Stream data callback.
+     * Can be used when the stream's data should be handled by
+     * a specific function rather than the default stream data
+     * callback.
+     *
+     * @return Reference to stream on success, error code otherwise.
+     ******************************************************/
     [[nodiscard]] virtual auto
-    open_stream(connection & cctx,
-                std::optional<stream_data_callback_t> data_callback)
-        -> result<std::reference_wrapper<stream>> = 0;
+    open_stream(connection & connection,
+                std::optional<stream_data_callback_t> data_callback =
+                    std::nullopt) -> result<std::reference_wrapper<stream>> = 0;
 
     /**
      * Close the given stream.
@@ -44,7 +67,14 @@ public:
      *
      * @return std::error_code Error code indicating the close status.
      */
-    [[nodiscard]] virtual auto close_stream(stream & sctx) -> result<> = 0;
+
+    /******************************************************
+     * Close the stream.
+     *
+     * @param [in] stream Stream to close
+     * @return  Result object indicating success or failure.
+     ******************************************************/
+    [[nodiscard]] virtual auto close_stream(stream & stream) -> result<> = 0;
 
     /**
      * Send data to an already open stream
@@ -55,18 +85,35 @@ public:
      * @return std::size_t The amount of bytes successfully written to the send
      * buffer.
      */
+
+    /******************************************************
+     * Send data to a stream.
+     *
+     * @param [in] stream Target stream
+     * @param [in] buf Data to send
+     * @return Amount of bytes sent if successful, error code otherwise.
+     ******************************************************/
     [[nodiscard]] virtual auto
-    send(stream & sctx, send_buffer<true> buf) -> result<std::size_t> = 0;
+    send(stream & stream, send_buffer<true> buf) -> result<std::size_t> = 0;
 
     /**
      * Register a callback function for a specific event.
      *
      * @param args The callback function, and the user-defined context pointer
      */
+
+    /******************************************************
+     * Register a callback function for a specific event happening
+     * in the connection or the streams.
+     *
+     * @tparam T Auto-deduced callback type
+     * @tparam Args Auto-deduced callback argument types
+     * @param args Callback default arguments
+     ******************************************************/
     template <callback_type T, typename... Args>
     void register_callback(Args &&... args) noexcept {
         decltype(auto) callback =
-            quic_callback_function{ std::forward<Args>(args)... };
+            ::mad::nexus::callback{ std::forward<Args>(args)... };
 
         if constexpr (T == callback_type::connected) {
             static_assert(std::same_as<decltype(callback),
@@ -104,7 +151,7 @@ public:
         }
     }
 
-    /**
+    /******************************************************
      * Build a flatbuffers message for sending.
      *
      * The @p callable is an user-provided callable that takes
@@ -124,7 +171,7 @@ public:
      * @param [in] callable Callable that builds the user message
      *
      * @return send_buffer Send buffer containing the resulting message
-     */
+     ******************************************************/
     template <typename F>
     static auto build_message(F && callable) -> send_buffer<true> {
         // Each thread gets its own builder.
@@ -157,36 +204,41 @@ public:
         return buf;
     }
 
+    /******************************************************
+     * Destroy the quic base object
+     ******************************************************/
     virtual ~quic_base();
 
 protected:
-    /**
-     * The callback functions for user application.
-     */
+    /******************************************************
+     * The callback functions for delivering events to the
+     * user application.
+     ******************************************************/
     struct callback_table {
-        /**
+        /******************************************************
          * Invoked when a new connection is established.
-         */
+         ******************************************************/
         connection_callback_t on_connected{};
-        /**
+
+        /******************************************************
          * Invoked when a connection is disconnected and about
          * to be destroyed.
-         */
+         ******************************************************/
         connection_callback_t on_disconnected{};
 
-        /**
+        /******************************************************
          * Invoked when a new stream is started.
-         */
+         ******************************************************/
         stream_callback_t on_stream_start{};
 
-        /**
+        /******************************************************
          * Invoked when a stream is about to be destroyed.
-         */
+         ******************************************************/
         stream_callback_t on_stream_close{};
 
-        /**
+        /******************************************************
          * Invoked when data is received from a stream.
-         */
+         ******************************************************/
         stream_data_callback_t on_stream_data_received{};
     } callbacks{};
 };

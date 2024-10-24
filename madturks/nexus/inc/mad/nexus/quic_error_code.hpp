@@ -1,3 +1,8 @@
+/******************************************************
+ * Error codes
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <cstdint>
@@ -5,6 +10,9 @@
 #include <utility>
 
 namespace mad::nexus {
+/******************************************************
+ * nexus QUIC error codes
+ ******************************************************/
 enum class quic_error_code : std::int32_t
 {
     success = 0,
@@ -33,6 +41,9 @@ enum class quic_error_code : std::int32_t
     not_yet_implemented
 };
 
+/******************************************************
+ * Error category to enable transparent pretty-printing.
+ ******************************************************/
 struct quic_error_code_category : std::error_category {
     const char * name() const noexcept override;
     std::string message(int condition) const override;
