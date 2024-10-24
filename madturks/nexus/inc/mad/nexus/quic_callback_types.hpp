@@ -1,12 +1,19 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
-#include <mad/nexus/quic_callback_function.hpp>
+#include <mad/nexus/callback.hpp>
 
 #include <cstdint>
 #include <span>
 
 namespace mad::nexus {
 
+/******************************************************
+ * The QUIC callback types.
+ ******************************************************/
 enum class callback_type
 {
     connected,
@@ -16,9 +23,23 @@ enum class callback_type
     stream_data
 };
 
-using connection_callback_t = quic_callback_function<void(struct connection &)>;
+/******************************************************
+ * Connection callback type.
+ *
+ * Used for connected / disconnected.
+ ******************************************************/
+using connection_callback_t = callback<void(struct connection &)>;
 
-using stream_callback_t = quic_callback_function<void(struct stream &)>;
+/******************************************************
+ * Stream callback type.
+ *
+ * Used for stream start / stream end.
+ ******************************************************/
+using stream_callback_t = callback<void(struct stream &)>;
+
+/******************************************************
+ * Stream data callback type.
+ ******************************************************/
 using stream_data_callback_t =
-    quic_callback_function<std::size_t(std::span<const std::uint8_t>)>;
+    callback<std::size_t(std::span<const std::uint8_t>)>;
 } // namespace mad::nexus

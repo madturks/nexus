@@ -1,3 +1,8 @@
+/******************************************************
+ * Raw ptr/size wrapper type.
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <mad/macro>
@@ -10,43 +15,54 @@
 #include <utility>
 
 namespace mad::nexus {
-/**
- * It's flatbuffers::detachedbuffer but:
+/******************************************************
+ * QUIC send buffer type.
  *
- * - without a allocator
- * - with a toggle to control the deallocation
- *   on destruction
- *
- * @tparam AutoCleanup Whether to destroy the buffer
- * upon destruction or not.
- */
+ * @tparam AutoCleanup Whether to delete the owned resource
+ * on destruction.
+ ******************************************************/
 template <bool AutoCleanup = true>
 struct send_buffer {
+
+    /******************************************************
+     * The size of the QUIC_BUFFER type.
+     ******************************************************/
     static constexpr std::size_t k_QuicBufStructSize = 16;
+
+    /******************************************************
+     * The alignment requirement of the QUIC_BUFFER type.
+     ******************************************************/
     [[maybe_unused]] static constexpr auto k_QuicBufStructAlignment = 8;
-    /**
+
+    /******************************************************
      * Sentinel value used as a placeholder for QUIC_BUFFER's space
      * until the real one is written.
-     */
+     ******************************************************/
     [[maybe_unused]] constexpr static std::uint8_t
         quic_buf_sentinel [k_QuicBufStructSize] = { 0xDE, 0xAD, 0xBE, 0xEF,
                                                     0xBA, 0xAD, 0xC0, 0xDE,
                                                     0xCA, 0xFE, 0xBA, 0xBE,
                                                     0xDE, 0xAD, 0xFA, 0xCE };
-    std::uint8_t * buf{ nullptr };
-    std::size_t offset{ 0 };
-    std::size_t buf_size{ 0 };
 
+    /******************************************************
+     * The default constructor.
+     ******************************************************/
     send_buffer() {}
 
     send_buffer(const send_buffer &) = delete;
     send_buffer & operator=(const send_buffer &) = delete;
     send_buffer & operator=(send_buffer &&) = delete;
 
+    /******************************************************
+     * The space used.
+     ******************************************************/
     auto size() const noexcept {
         return buf_size - offset;
     }
 
+    /******************************************************
+     * The reserved space for the QUIC_BUFFER.
+     ******************************************************/
     std::span<std::uint8_t> quic_buffer_span() noexcept {
         MAD_EXPECTS(buf);
         MAD_EXPECTS(buf_size >= k_QuicBufStructSize);
@@ -60,6 +76,9 @@ struct send_buffer {
         return { ptr, k_QuicBufStructSize };
     }
 
+    /******************************************************
+     * The size which is embedded into the data itself.
+     ******************************************************/
     std::uint32_t encoded_data_size() const noexcept {
         MAD_EXPECTS(size() >= sizeof(std::uint32_t));
         std::uint32_t val{};
@@ -67,6 +86,9 @@ struct send_buffer {
         return val;
     }
 
+    /******************************************************
+     * User data part of the buffer.
+     ******************************************************/
     std::span<std::uint8_t> data_span() const noexcept {
         MAD_EXPECTS(buf);
         MAD_EXPECTS(offset <= buf_size);
@@ -78,6 +100,11 @@ struct send_buffer {
         return { ptr, sz };
     }
 
+    /******************************************************
+     * Move constructor
+     *
+     * @param other from
+     ******************************************************/
     template <bool B>
     send_buffer(send_buffer<B> && other) noexcept {
         // There's no possibility of being the same object
@@ -87,11 +114,18 @@ struct send_buffer {
         std::swap(buf_size, other.buf_size);
     }
 
+    /******************************************************
+     * Destroy the send buffer object.
+     ******************************************************/
     ~send_buffer() {
         if (AutoCleanup) {
             // Deallocating a nullptr is defined behavior.
             ::flatbuffers::DefaultAllocator::dealloc(buf, buf_size);
         }
     }
+
+    std::uint8_t * buf{ nullptr };
+    std::size_t offset{ 0 };
+    std::size_t buf_size{ 0 };
 };
 } // namespace mad::nexus

@@ -1,6 +1,11 @@
+/******************************************************
+ * Nexus sample client application.
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/log_printer.hpp>
 #include <mad/nexus/quic.hpp>
-#include <mad/nexus/quic_callback_function.hpp>
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
