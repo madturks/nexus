@@ -16,8 +16,6 @@ namespace mad::nexus {
 class msquic_base : virtual public quic_base,
                     public log_printer {
 public:
-    msquic_base();
-
     auto init() -> result<> override;
     auto open_stream(connection & cctx,
                      std::optional<stream_data_callback_t> data_callback)
@@ -27,6 +25,13 @@ public:
               send_buffer<true> buf) -> result<std::size_t> override;
 
     virtual ~msquic_base() override;
+
+protected:
+    msquic_base(const class msquic_application & app);
+    /******************************************************
+     * The application that client belongs to.
+     ******************************************************/
+    const class msquic_application & application;
 };
 
 } // namespace mad::nexus

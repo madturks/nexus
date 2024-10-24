@@ -10,6 +10,8 @@
 #include <mad/nexus/quic_configuration.hpp>
 #include <mad/nexus/result.hpp>
 
+#include <string_view>
+
 namespace mad::nexus {
 
 /******************************************************
@@ -23,10 +25,14 @@ public:
     virtual ~quic_server() override;
 
     /******************************************************
-     * Start listening
+     * Start listening for connections
+     *
+     * @param [in] alpn Which alpn
+     * @param [in] port Which port
      * @return  Listen result
      ******************************************************/
-    [[nodiscard]] virtual auto listen() -> result<> = 0;
+    [[nodiscard]] virtual auto listen(std::string_view alpn,
+                                      std::uint16_t port) -> result<> = 0;
 };
 
 } // namespace mad::nexus

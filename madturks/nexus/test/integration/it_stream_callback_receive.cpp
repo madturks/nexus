@@ -16,7 +16,7 @@
 
 #include <flatbuffers/flatbuffer_builder.h>
 #include <gtest/gtest.h>
-#include <msquic.hpp>
+#include <msquic.h>
 
 static auto encode_monster_msg() {
     static auto validator =

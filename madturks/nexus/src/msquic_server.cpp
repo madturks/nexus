@@ -8,13 +8,12 @@
 
 #include <flatbuffers/detached_buffer.h>
 #include <fmt/format.h>
-#include <msquic.hpp>
+#include <msquic.h>
 
 #include <netinet/in.h>
 
 #include <expected>
 #include <memory>
-#include <system_error>
 #include <utility>
 
 namespace mad::nexus {
@@ -37,11 +36,12 @@ struct MsQuicServerCallbacks {
      *
      * @return QUIC_ADDR_STR address in QUIC_ADDR_STR forat.
      */
-    static QUIC_ADDR_STR get_remote_address(HQUIC connection) {
+    static QUIC_ADDR_STR get_remote_address(QUIC_HANDLE * connection,
+                                            const QUIC_API_TABLE * api) {
         QUIC_ADDR remote_addr;
         std::uint32_t addr_size = sizeof(QUIC_ADDR);
-        MsQuic->GetParam(connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size,
-                         &remote_addr);
+        api->GetParam(connection, QUIC_PARAM_CONN_REMOTE_ADDRESS, &addr_size,
+                      &remote_addr);
         QUIC_ADDR_STR str;
         QuicAddrToString(&remote_addr, &str);
         return str;
@@ -59,22 +59,23 @@ struct MsQuicServerCallbacks {
     static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventConnected(
         HQUIC new_connection, [[maybe_unused]] const connected_event & event,
         msquic_server & server) {
-        auto remote = get_remote_address(new_connection);
+        auto remote = get_remote_address(
+            new_connection, server.application.api());
         MAD_LOG_INFO_I(server, "New client connected: {}", remote.Address);
 
-        std::shared_ptr<void> connection_shared_ptr{
+        std::shared_ptr<QUIC_HANDLE> connection_shared_ptr{
             new_connection,
-            [](void * sp) {
-                MsQuic->ConnectionClose(static_cast<HQUIC>(sp));
+            [api = server.application.api()](QUIC_HANDLE * sp) {
+                api->ConnectionClose(sp);
             }
         };
 
         return server.add_new_connection(connection_shared_ptr)
             .and_then([&](auto && v) {
-                MsQuic->ConnectionSendResumptionTicket(
+                server.application.api()->ConnectionSendResumptionTicket(
                     v.get().template handle_as<HQUIC>(),
                     QUIC_SEND_RESUMPTION_FLAG_NONE, 0, nullptr);
-                assert(server.callbacks.on_connected);
+                MAD_EXPECTS(server.callbacks.on_connected);
                 // Notify app
                 server.callbacks.on_connected(v.get());
                 return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };
@@ -96,8 +97,7 @@ struct MsQuicServerCallbacks {
      * @return QUIC_STATUS Return code indicating callback result
      */
     static MAD_ALWAYS_INLINE QUIC_STATUS ServerConnectionEventShutdownCompleted(
-        HQUIC connection,
-        [[maybe_unused]] const shutdown_complete_event & event,
+        QUIC_HANDLE * connection, const shutdown_complete_event & event,
         msquic_server & server) {
 
         if (event.AppCloseInProgress) {
@@ -170,7 +170,8 @@ struct MsQuicServerCallbacks {
                 // We shouldn't receive peer_stream_started event
                 // as we're not allowing peer initiated streams.
                 // Shutdown them directly.
-                MsQuic->StreamClose(event->PEER_STREAM_STARTED.Stream);
+                server.application.api()->StreamClose(
+                    event->PEER_STREAM_STARTED.Stream);
             } break;
             case QUIC_CONNECTION_EVENT_RESUMED: {
                 MAD_LOG_INFO_I(server, "Connection resumed!");
@@ -200,11 +201,11 @@ struct MsQuicServerCallbacks {
         // A new connection is being attempted by a client. For the handshake to
         // proceed, the server must provide a configuration for QUIC to use. The
         // app MUST set the callback handler before returning.
-        MsQuic->SetCallbackHandler(
+        server.application.api()->SetCallbackHandler(
             event.Connection,
             reinterpret_cast<void *>(ServerConnectionCallback), &server);
-        return MsQuic->ConnectionSetConfiguration(
-            event.Connection, server.application.configuration().Handle);
+        return server.application.api()->ConnectionSetConfiguration(
+            event.Connection, server.application.configuration());
     }
 
     /**
@@ -216,8 +217,7 @@ struct MsQuicServerCallbacks {
      *
      * @return QUIC_STATUS Return code indicating callback result
      */
-    static QUIC_STATUS ServerListenerCallback(MsQuicListener * hlistener,
-                                              void * context,
+    static QUIC_STATUS ServerListenerCallback(HQUIC hlistener, void * context,
                                               QUIC_LISTENER_EVENT * event) {
         assert(hlistener);
         assert(context);
@@ -240,34 +240,53 @@ struct MsQuicServerCallbacks {
     }
 };
 
-msquic_server::msquic_server(const msquic_application & app) :
-    msquic_base(), application(app) {}
-
 msquic_server::~msquic_server() = default;
 
-auto msquic_server::listen() -> result<> {
+auto msquic_server::listen(std::string_view alpn,
+                           std::uint16_t port) -> result<> {
 
-    const auto & config = application.get_config();
-
-    listener_opaque = std::make_shared<MsQuicListener>(
-        application.registration(), MsQuicCleanUpMode::CleanUpManual,
-        &MsQuicServerCallbacks::ServerListenerCallback, this);
-
-    MsQuicListener & listener = *reinterpret_cast<MsQuicListener *>(
-        listener_opaque.get());
-    if (!listener.IsValid()) {
-        return std::unexpected{ quic_error_code::listener_start_failed };
+    // Omit nul terminators from alpn if present
+    if (auto fi = alpn.find('\n'); fi != alpn.npos) {
+        alpn.remove_suffix(alpn.size() - fi);
     }
 
-    MsQuicAlpn alpn{ config.alpn.c_str() };
+    {
+        HQUIC listener_handle{ nullptr };
 
-    QUIC_ADDR Address = {};
+        if (auto r = application.api()->ListenerOpen(
+                application.registration(),
+                &MsQuicServerCallbacks::ServerListenerCallback, this,
+                &listener_handle);
+            QUIC_FAILED(r)) {
+            return std::unexpected{
+                quic_error_code::listener_initialization_failed
+            };
+        }
+
+        listener = std::shared_ptr<QUIC_HANDLE>(
+            listener_handle, [api = application.api()](QUIC_HANDLE * h) {
+                MAD_EXPECTS(h);
+                MAD_EXPECTS(api);
+                api->ListenerClose(h);
+            });
+
+        MAD_ENSURES(listener);
+    }
+
+    // QUIC_BUFFER's Buffer pointer is mutable. Make a copy.
+    std::vector<std::uint8_t> alpn_tmp{ alpn.begin(), alpn.end() };
+    const QUIC_BUFFER q_alpn{ static_cast<std::uint32_t>(alpn_tmp.size()),
+                              alpn_tmp.data() };
+
+    QUIC_ADDR addr = {};
     // Bind to 0.0.0.0
-    QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
-    QuicAddrSetPort(&Address, config.udp_port_number);
+    QuicAddrSetFamily(&addr, QUIC_ADDRESS_FAMILY_UNSPEC);
+    QuicAddrSetPort(&addr, port);
 
-    if (QUIC_FAILED(listener.Start(alpn, &Address))) {
-        return std::unexpected{ quic_error_code::listener_start_failed };
+    if (auto r = application.api()->ListenerStart(
+            listener.get(), &q_alpn, 1, &addr);
+        QUIC_FAILED(r)) {
+        return std::unexpected(quic_error_code::stream_start_failed);
     }
 
     return {};

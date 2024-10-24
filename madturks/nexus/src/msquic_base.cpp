@@ -1,5 +1,6 @@
 #include <mad/log>
 #include <mad/macro>
+#include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_base.hpp>
 #include <mad/nexus/quic_connection.hpp>
 #include <mad/nexus/quic_error_code.hpp>
@@ -7,7 +8,7 @@
 
 #include <flatbuffers/default_allocator.h>
 #include <flatbuffers/detached_buffer.h>
-#include <msquic.hpp>
+#include <msquic.h>
 
 #include <bit>
 #include <utility>
@@ -308,7 +309,8 @@ QUIC_STATUS StreamCallback([[maybe_unused]] HQUIC stream_handle, void * context,
     return QUIC_STATUS_SUCCESS;
 };
 
-msquic_base::msquic_base() : log_printer("console") {
+msquic_base::msquic_base(const msquic_application & app) :
+    log_printer("console"), application(app) {
     set_log_level(log_level::info);
 }
 
@@ -325,36 +327,38 @@ auto msquic_base::open_stream(
 
     HQUIC new_stream = nullptr;
 
-    if (auto status = MsQuic->StreamOpen(cctx.handle_as<HQUIC>(),
-                                         QUIC_STREAM_OPEN_FLAG_NONE,
-                                         StreamCallback, nullptr, &new_stream);
-        QUIC_FAILED(status)) {
-        MAD_LOG_ERROR("stream open failed with {}", status);
+    if (auto result = application.api()->StreamOpen(
+            cctx.handle_as<QUIC_HANDLE *>(), QUIC_STREAM_OPEN_FLAG_NONE,
+            StreamCallback, nullptr, &new_stream);
+        QUIC_FAILED(result)) {
+        MAD_LOG_ERROR("stream open failed with {}", result);
         return std::unexpected(quic_error_code::stream_open_failed);
     }
 
+    // The user may decide to use different callbacks per stream.
     stream_callbacks scb{
         .on_start = callbacks.on_stream_start,
         .on_close = callbacks.on_stream_close,
+
         .on_data_received = data_callback ? data_callback.value()
                                           : callbacks.on_stream_data_received
     };
 
-    // The user may decide to use different callbacks per stream.
-
     return cctx
         .add_new_stream({ new_stream,
-                          [](void * sp) {
-                              MsQuic->StreamClose(static_cast<HQUIC>(sp));
+                          [api = application.api()](QUIC_HANDLE * h) {
+                              api->StreamClose(h);
                           } },
                         scb)
-        .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
-            MsQuic->SetContext(v.get().template handle_as<HQUIC>(),
-                               static_cast<void *>(&v.get()));
+        .and_then([api = application.api()](
+                      auto && v) -> result<std::reference_wrapper<stream>> {
+            api->SetContext(v.get().template handle_as<HQUIC>(),
+                            static_cast<void *>(&v.get()));
             return std::move(v);
         })
-        .and_then([&](auto && v) -> result<std::reference_wrapper<stream>> {
-            if (QUIC_FAILED(MsQuic->StreamStart(
+        .and_then([api = application.api()](
+                      auto && v) -> result<std::reference_wrapper<stream>> {
+            if (QUIC_FAILED(api->StreamStart(
                     v.get().template handle_as<HQUIC>(),
                     QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL))) {
 
@@ -411,7 +415,7 @@ auto msquic_base::send(stream & sctx,
                   buf.encoded_data_size());
 
     // We're using the context pointer here to store the key.
-    if (auto status = MsQuic->StreamSend(
+    if (auto status = application.api()->StreamSend(
             sctx.handle_as<HQUIC>(), qbuf, 1, QUIC_SEND_FLAG_NONE, buf.buf);
         QUIC_FAILED(status)) {
         MAD_LOG_ERROR("stream send failed!");
