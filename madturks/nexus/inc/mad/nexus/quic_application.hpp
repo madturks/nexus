@@ -33,16 +33,6 @@ public:
     [[nodiscard]] virtual std::unique_ptr<quic_client> make_client() = 0;
 
     /******************************************************
-     * Get the configuration associated with the application
-     *
-     * @return  Immutable ref to the configuration
-     ******************************************************/
-    [[nodiscard]] inline const quic_configuration &
-    get_config() const noexcept {
-        return config;
-    }
-
-    /******************************************************
      * Destroy the quic application object
      ******************************************************/
     virtual ~quic_application();
@@ -51,14 +41,6 @@ protected:
     /******************************************************
      * Prohibit direct construction.
      ******************************************************/
-    quic_application(const quic_configuration & cfg);
-
-    /******************************************************
-     * The application's configuration.
-     *
-     * This configuration will be used for producing new
-     * clients and servers.
-     ******************************************************/
-    quic_configuration config;
+    quic_application();
 };
 } // namespace mad::nexus

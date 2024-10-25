@@ -63,11 +63,6 @@ private:
     friend std::unique_ptr<quic_client> msquic_application::make_client();
 
     /******************************************************
-     * The application that client belongs to.
-     ******************************************************/
-    const msquic_application & application;
-
-    /******************************************************
      * Construct a new msquic client object.
      *
      * The constructor is marked private because we don't
@@ -76,16 +71,11 @@ private:
      *
      * @param app The MSQUIC application
      ******************************************************/
-    msquic_client(const msquic_application & app);
+    using msquic_base::msquic_base;
 
     /******************************************************
      * The client's connection object.
      ******************************************************/
     std::unique_ptr<struct connection> connection{};
-
-    /******************************************************
-     * The backing MSQUIC connection.
-     ******************************************************/
-    std::shared_ptr<void> msquic_connection_ptr{};
 };
 } // namespace mad::nexus

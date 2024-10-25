@@ -11,6 +11,8 @@
 
 #include <memory>
 
+struct QUIC_HANDLE;
+
 namespace mad::nexus {
 
 class msquic_server final : virtual public quic_server,
@@ -22,16 +24,14 @@ class msquic_server final : virtual public quic_server,
         std::unordered_map<std::shared_ptr<void>, connection,
                            shared_ptr_raw_hash, shared_ptr_raw_equal>;
 
-    std::shared_ptr<void> listener_opaque{};
+    std::shared_ptr<QUIC_HANDLE> listener{};
     // Might be moved to quic_server?
     mad::concurrent<connection_map_t> connection_map{};
 
 public:
-    const msquic_application & application;
-
     virtual ~msquic_server() override;
 
-    virtual result<> listen() override;
+    virtual result<> listen(std::string_view alpn, std::uint16_t port) override;
 
     /**
      * Add a new connection to the connection map.
@@ -96,7 +96,7 @@ private:
      *
      * @param app MSQUIC application
      */
-    msquic_server(const msquic_application & app);
+    using msquic_base::msquic_base;
 };
 
 } // namespace mad::nexus

@@ -67,6 +67,10 @@ std::string quic_error_code_category::message(int condition) const {
             return "Send failed.";
         case not_yet_implemented:
             return "Not yet implemented.";
+        case client_not_connected:
+            return "Client is not connected.";
+        case client_already_connected:
+            return "Client is already in connected state.";
     }
 
     MAD_EXHAUSTIVE_SWITCH_END

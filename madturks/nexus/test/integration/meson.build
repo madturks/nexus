@@ -1,7 +1,6 @@
 nexus_stream_callback_integration_tests = executable(
     'it-madturks-nexus-stream-callback',
     'it_stream_callback_receive.cpp',
-    #'it_stream_callback_send_complete.cpp',
     dependencies: [
         nexus,
         madturks_core_temputils,

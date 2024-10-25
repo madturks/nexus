@@ -269,7 +269,7 @@ int main(int argc, char * argv []) {
         }
 
         auto result = server->init().and_then([&] {
-            return server->listen();
+            return server->listen(cfg.alpn, 6666);
         });
 
         if (!result) {

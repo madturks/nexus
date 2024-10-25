@@ -53,7 +53,6 @@ msquic = declare_dependency(
                 'msquic.h',
                 'msquic_posix.h',
                 'quic_sal_stub.h',
-                'msquic.hpp',
                 'msquicp.h',
             ],
             header_include_directories: include_directories('vendor/msquic/2.4.4/include', is_system: true),

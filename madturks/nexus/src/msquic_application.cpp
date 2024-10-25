@@ -3,112 +3,159 @@
 #include <mad/nexus/msquic/msquic_client.hpp>
 #include <mad/nexus/msquic/msquic_server.hpp>
 
-#include <msquic.hpp>
+#include <msquic.h>
 
 #include <filesystem>
 #include <memory>
 
-/**
- * The global MSQUIC api object, used by the MSQUIC C++
- * API, and nexus MSQUIC based implementation.
- */
-const MsQuicApi * MsQuic{ nullptr };
 /**
  * This is a weak pointer to hold a reference to msquic_auto_init
  * object if it's already been initialized.
  */
 static std::weak_ptr<void> auto_init_obj{};
 
-static MsQuicSettings
+static QUIC_SETTINGS
 settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
-    MsQuicSettings settings{};
+
+    QUIC_SETTINGS settings{};
 
     // Configures the server's idle timeout.
     if (cfg.idle_timeout) {
-        settings.SetIdleTimeoutMs(
-            static_cast<std::uint64_t>(cfg.idle_timeout->count()));
+        settings.IdleTimeoutMs = static_cast<std::uint64_t>(
+            cfg.idle_timeout->count());
+        settings.IsSet.IdleTimeoutMs = true;
+    }
+
+    if (cfg.keep_alive_interval) {
+        settings.KeepAliveIntervalMs = static_cast<std::uint32_t>(
+            cfg.keep_alive_interval->count());
+        settings.IsSet.KeepAliveIntervalMs = true;
     }
 
     // Configures the server's resumption level to allow for resumption and
     // 0-RTT.
-    settings.SetServerResumptionLevel(QUIC_SERVER_RESUME_AND_ZERORTT);
-    settings.SetSendBufferingEnabled(true);
+    settings.ServerResumptionLevel = QUIC_SERVER_RESUME_AND_ZERORTT;
+    settings.IsSet.ServerResumptionLevel = true;
+
+    settings.SendBufferingEnabled = false;
+    settings.IsSet.SendBufferingEnabled = true;
+
     // Configures the server's settings to allow for the peer to open a
     // single bidirectional stream. By default connections are not
     // configured to allow any streams from the peer.
-    settings.SetPeerBidiStreamCount(1);
-    settings.SetStreamRecvWindowDefault(cfg.stream_receive_window);
+    settings.PeerBidiStreamCount = 1;
+    settings.IsSet.PeerBidiStreamCount = true;
+
+    settings.StreamRecvWindowDefault = cfg.stream_receive_window;
+    settings.IsSet.StreamRecvWindowDefault = true;
 
     return settings;
 }
 
 namespace mad::nexus {
+
 std::unique_ptr<quic_application>
 make_msquic_application(const quic_configuration & cfg) {
-    return std::unique_ptr<msquic_application>(new msquic_application(cfg));
-}
 
-msquic_application::msquic_application(const quic_configuration & cfg) :
-    quic_application(cfg) {
-    MAD_EXPECTS(!cfg.appname.empty());
-    MAD_EXPECTS(!cfg.alpn.empty());
+    /******************************************************
+     * MSQUIC API observer object.
+     *
+     * Keeps a weak reference to the MSQUIC API object so
+     * the code can fetch the object for subsequent application
+     * initializations.
+     ******************************************************/
+    static std::weak_ptr<const ::QUIC_API_TABLE> msquic_api{};
 
-    // MSQUIC API init
+    // Try to retrieve the API pointer, if any.
+    std::shared_ptr<const ::QUIC_API_TABLE> api = msquic_api.lock();
+    std::shared_ptr<QUIC_HANDLE> registration = {};
+    std::shared_ptr<QUIC_HANDLE> configuration = {};
+
+    /******************************************************
+     * Initialize MSQUIC API if not yet been initialized.
+     *
+     * The API is intended to be shared between all the
+     * applications.
+     ******************************************************/
+
+    if (nullptr == api) {
+        const ::QUIC_API_TABLE * api_table{ nullptr };
+        if (auto result = MsQuicOpen2(&api_table); QUIC_FAILED(result)) {
+            return nullptr;
+        }
+        MAD_EXPECTS(api_table);
+        api = std::shared_ptr<const ::QUIC_API_TABLE>(api_table, MsQuicClose);
+    }
+
+    // At this point we should have a valid API object, either a new
+    // one, or reusing an existing one.
+    MAD_ENSURES(api);
+
+    /******************************************************
+     * Create a MSQUIC registration object
+     ******************************************************/
     {
-        /**
-         * Wrapper type for automatically managing the lifetime
-         * of the global MsQuic API object.
-         *
-         * This struct is intended to be used in junction with
-         * shared_ptr/weak_ptr's to tie the lifetime to different
-         * instances of the msquic_application.
-         */
-        struct msquic_auto_init {
-            msquic_auto_init() noexcept {
-                MAD_EXPECTS(nullptr == MsQuic);
-                MsQuic = new (std::nothrow) MsQuicApi();
-                MAD_ENSURES(nullptr != MsQuic);
-            }
+        MAD_EXPECTS(api);
+        MAD_EXPECTS(nullptr == registration);
+        MAD_EXPECTS(nullptr == configuration);
+        QUIC_REGISTRATION_CONFIG regcfg{};
+        regcfg.AppName = cfg.appname.c_str();
+        regcfg.ExecutionProfile = QUIC_EXECUTION_PROFILE_LOW_LATENCY;
+        HQUIC registration_handle = { nullptr };
 
-            ~msquic_auto_init() noexcept {
-                MAD_EXPECTS(nullptr != MsQuic);
-                delete MsQuic;
-                MsQuic = nullptr;
-                MAD_ENSURES(nullptr == MsQuic);
-            }
-        };
-
-        /**
-         * Check if the MsQuic API has been initialized already.
-         *
-         * If so, the weak_ptr would return the shared_ptr to the
-         * existing msquic_auto_init object, which effectively increases
-         * the reference count by one. Otherwise, a new one is created
-         * from scratch and set to the weak_ptr as well.
-         */
-        api_ptr = auto_init_obj.lock();
-        if (nullptr == api_ptr) {
-            api_ptr = std::make_shared<msquic_auto_init>();
-            auto_init_obj = api_ptr;
+        if (auto r = api->RegistrationOpen(&regcfg, &registration_handle);
+            QUIC_FAILED(r)) {
+            return nullptr;
         }
 
-        MAD_ENSURES(nullptr != api_ptr);
-        MAD_ENSURES(!auto_init_obj.expired());
+        registration = std::shared_ptr<QUIC_HANDLE>(
+            registration_handle, [api](QUIC_HANDLE * h) {
+                MAD_EXPECTS(h);
+                api->RegistrationClose(h);
+            });
+
+        MAD_ENSURES(registration);
     }
 
-    // Registration object init
+    /******************************************************
+     * Load configuration into MSQUIC configuration object
+     ******************************************************/
     {
-        registration_ptr = std::make_shared<MsQuicRegistration>(
-            cfg.appname.c_str(), QUIC_EXECUTION_PROFILE_LOW_LATENCY, true);
+        MAD_EXPECTS(api);
+        MAD_EXPECTS(registration);
+        MAD_EXPECTS(nullptr == configuration);
+        MAD_EXPECTS(!cfg.appname.empty());
+        MAD_EXPECTS(!cfg.alpn.empty());
+        HQUIC configuration_handle = { nullptr };
 
-        MAD_ENSURES(registration_ptr);
-        MAD_ENSURES(registration_ptr->IsValid());
+        const auto msquic_settings = settings_to_msquic(cfg);
+
+        std::vector<std::uint8_t> a{ cfg.alpn.begin(), cfg.alpn.end() };
+        const QUIC_BUFFER alpn = { static_cast<std::uint32_t>(a.size()),
+                                   a.data() };
+
+        if (auto r = api->ConfigurationOpen(
+                registration.get(), &alpn, 1, &msquic_settings,
+                sizeof(QUIC_SETTINGS), nullptr, &configuration_handle);
+            QUIC_FAILED(r)) {
+            return nullptr;
+        }
+
+        configuration = std::shared_ptr<QUIC_HANDLE>(
+            configuration_handle, [api](QUIC_HANDLE * h) {
+                MAD_EXPECTS(h);
+                api->ConfigurationClose(h);
+            });
+        MAD_ENSURES(configuration);
     }
 
-    // Configuration init
+    /******************************************************
+     * Load credentials info to configuration
+     ******************************************************/
     {
-        MsQuicAlpn alpn{ cfg.alpn.c_str() };
-
+        MAD_EXPECTS(api);
+        MAD_EXPECTS(registration);
+        MAD_EXPECTS(configuration);
         QUIC_CREDENTIAL_CONFIG credential_config = {};
         QUIC_CERTIFICATE_FILE certificate = {};
         MAD_ENSURES(credential_config.Reserved == nullptr);
@@ -141,39 +188,67 @@ msquic_application::msquic_application(const quic_configuration & cfg) :
         }
         MAD_EXHAUSTIVE_SWITCH_END
 
-        MsQuicCredentialConfig cred_cfg{ credential_config };
-        auto msquic_cfg = settings_to_msquic(cfg);
+        if (auto r = api->ConfigurationLoadCredential(
+                configuration.get(), &credential_config);
+            QUIC_FAILED(r)) {
+            return nullptr;
+        }
 
-        configuration_ptr = std::make_shared<MsQuicConfiguration>(
-            *registration_ptr.get(), alpn, msquic_cfg, credential_config);
-
-        MAD_ENSURES(configuration_ptr);
-        MAD_ENSURES(configuration_ptr->IsValid());
+        // Is there a way to assert?
     }
+
+    // try to alloc?
+
+    auto result = new (std::nothrow) msquic_application(
+        std::move(api), std::move(registration), std::move(configuration));
+
+    if (nullptr == result) {
+        // allocation failure
+        return nullptr;
+    }
+
+    return std::unique_ptr<msquic_application>(result);
+}
+
+msquic_application::msquic_application(
+    std::shared_ptr<const QUIC_API_TABLE> api_object,
+    std::shared_ptr<QUIC_HANDLE> registration,
+    std::shared_ptr<QUIC_HANDLE> configuration) :
+    quic_application(), msquic_api(api_object), registration_ptr(registration),
+    configuration_ptr(configuration) {
+    MAD_EXPECTS(msquic_api);
+    MAD_EXPECTS(registration_ptr);
+    MAD_EXPECTS(configuration_ptr);
 }
 
 msquic_application::~msquic_application() = default;
 
 std::unique_ptr<quic_server> msquic_application::make_server() {
-    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
-    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
+    MAD_EXPECTS(msquic_api);
+    MAD_EXPECTS(registration_ptr);
+    MAD_EXPECTS(configuration_ptr);
     return std::unique_ptr<msquic_server>(new msquic_server(*this));
 }
 
 std::unique_ptr<quic_client> msquic_application::make_client() {
-    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
-    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
+    MAD_EXPECTS(msquic_api);
+    MAD_EXPECTS(registration_ptr);
+    MAD_EXPECTS(configuration_ptr);
     return std::unique_ptr<msquic_client>(new msquic_client(*this));
 }
 
-const MsQuicRegistration & msquic_application::registration() const {
-    MAD_EXPECTS(registration_ptr && registration_ptr->IsValid());
-    return *registration_ptr.get();
+const QUIC_API_TABLE * msquic_application::api() const noexcept {
+    return msquic_api.get();
 }
 
-const MsQuicConfiguration & msquic_application::configuration() const {
-    MAD_EXPECTS(configuration_ptr && configuration_ptr->IsValid());
-    return *configuration_ptr.get();
+QUIC_HANDLE * msquic_application::registration() const noexcept {
+    MAD_EXPECTS(registration_ptr);
+    return registration_ptr.get();
+}
+
+QUIC_HANDLE * msquic_application::configuration() const noexcept {
+    MAD_EXPECTS(configuration_ptr);
+    return configuration_ptr.get();
 }
 
 } // namespace mad::nexus
