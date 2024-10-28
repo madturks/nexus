@@ -224,7 +224,7 @@ MAD_ALWAYS_INLINE QUIC_STATUS StreamCallbackShutdownComplete(
     }
 
     return sctx.connection()
-        .remove_stream(sctx.handle_as<>())
+        .erase(sctx.handle_as<>())
         .and_then([&](auto &&) -> result<QUIC_STATUS> {
             MAD_LOG_DEBUG_I(stream_logger(),
                             "StreamCallbackShutdownComplete - stream "
@@ -250,7 +250,7 @@ StreamCallbackStartComplete(stream & sctx, events::start_complete & event)
 {
     if (QUIC_FAILED(event.Status)) {
         return sctx.connection()
-            .remove_stream(sctx.handle_as<>())
+            .erase(sctx.handle_as<>())
             .and_then([&](auto &&) -> result<QUIC_STATUS> {
                 MAD_LOG_DEBUG_I(stream_logger(),
                                 "StreamCallbackStartComplete - stream "
@@ -344,12 +344,14 @@ auto msquic_base::open_stream(
                                           : callbacks.on_stream_data_received
     };
 
+    auto stream_shared_ptr =
+        std::shared_ptr<void>{ new_stream,
+                               [api = application.api()](QUIC_HANDLE * h) {
+                                   api->StreamClose(h);
+                               } };
+
     return cctx
-        .add_new_stream({ new_stream,
-                          [api = application.api()](QUIC_HANDLE * h) {
-                              api->StreamClose(h);
-                          } },
-                        scb)
+        .add(stream_shared_ptr, stream_shared_ptr.get(), cctx, std::move(scb))
         .and_then([api = application.api()](
                       auto && v) -> result<std::reference_wrapper<stream>> {
             api->SetContext(v.get().template handle_as<HQUIC>(),
@@ -377,13 +379,10 @@ auto msquic_base::open_stream(
 
 auto msquic_base::close_stream(stream & sctx) -> result<> {
 
-    return sctx.connection()
-        .remove_stream(sctx.handle_as<>())
-        .and_then([&](auto &&) {
-            MAD_LOG_DEBUG_I(
-                stream_logger(), "stream erased from connection map");
-            return result<>{};
-        });
+    return sctx.connection().erase(sctx.handle_as<>()).and_then([&](auto &&) {
+        MAD_LOG_DEBUG_I(stream_logger(), "stream erased from connection map");
+        return result<>{};
+    });
 }
 
 auto msquic_base::send(stream & sctx,

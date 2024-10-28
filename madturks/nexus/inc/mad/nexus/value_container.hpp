@@ -18,16 +18,15 @@
 namespace mad::nexus {
 
 /******************************************************
- * Convenience type for storing streams.
+ * Convenience type for storing values.
  *
  * @tparam Derived The derived type
  ******************************************************/
-template <typename Derived>
-struct stream_container {
-    using stream_handle_t = std::shared_ptr<void>;
-    using stream_map_t =
-        std::unordered_map<stream_handle_t, stream, shared_ptr_raw_hash,
-                           shared_ptr_raw_equal>;
+template <typename ValueType>
+struct value_container {
+    using underlying_map_t =
+        std::unordered_map<std::shared_ptr<void>, ValueType,
+                           shared_ptr_raw_hash, shared_ptr_raw_equal>;
 
     /******************************************************
      * Add a new stream to the stream map.
@@ -36,25 +35,24 @@ struct stream_container {
      * @param callbacks The callback table
      * @return The stream's reference on success, error_code otherwise.
      ******************************************************/
-    auto add_new_stream(std::shared_ptr<void> ptr, stream_callbacks callbacks)
-        -> result<std::reference_wrapper<stream>> {
 
-        auto stream_handle = ptr.get();
-        auto present = streams.find(ptr);
+    template <typename... Args>
+    auto add(std::shared_ptr<void> ptr, Args &&... value_args)
+        -> result<std::reference_wrapper<ValueType>> {
 
-        if (!(streams.end() == present)) {
+        auto present = storage.find(ptr);
+
+        if (!(storage.end() == present)) {
             // The same connection already exists?
             assert(false);
-            return std::unexpected(quic_error_code::stream_already_exists);
+            return std::unexpected(quic_error_code::value_already_exists);
         }
 
-        const auto & [emplaced_itr, emplace_status] = streams.emplace(
-            std::move(ptr),
-            stream{ stream_handle, *static_cast<Derived *>(this),
-                    std::move(callbacks) });
+        const auto & [emplaced_itr, emplace_status] = storage.emplace(
+            std::move(ptr), ValueType{ std::forward<Args>(value_args)... });
 
         if (!emplace_status) {
-            return std::unexpected(quic_error_code::stream_emplace_failed);
+            return std::unexpected(quic_error_code::value_emplace_failed);
         }
         return emplaced_itr->second;
     }
@@ -66,24 +64,24 @@ struct stream_container {
      * @return Extracted node from the stream map on success,
      *         error code otherwise.
      ******************************************************/
-    [[nodiscard]] auto
-    remove_stream(void * stream_handle) -> result<stream_map_t::node_type> {
-        auto present = streams.find(stream_handle);
+    [[nodiscard]] auto erase(void * stream_handle)
+        -> result<typename underlying_map_t::node_type> {
+        auto present = storage.find(stream_handle);
 
-        if (streams.end() == present) {
-            return std::unexpected(quic_error_code::stream_does_not_exist);
+        if (storage.end() == present) {
+            return std::unexpected(quic_error_code::value_does_not_exists);
         }
 
         // Remove the key-value pair from the map
         // and return it to caller. The caller might
         // have some unfinished business with it.
-        return streams.extract(present);
+        return storage.extract(present);
     }
 
 private:
     /******************************************************
      * Map of all streams owned by the connection
      ******************************************************/
-    stream_map_t streams{};
+    underlying_map_t storage{};
 };
 } // namespace mad::nexus

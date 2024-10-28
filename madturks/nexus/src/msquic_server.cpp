@@ -70,7 +70,7 @@ struct MsQuicServerCallbacks {
             }
         };
 
-        return server.add_new_connection(connection_shared_ptr)
+        return server.add(connection_shared_ptr, connection_shared_ptr.get())
             .and_then([&](auto && v) {
                 server.application.api()->ConnectionSendResumptionTicket(
                     v.get().template handle_as<HQUIC>(),
@@ -104,7 +104,7 @@ struct MsQuicServerCallbacks {
             return QUIC_STATUS_SUCCESS;
         }
 
-        return server.remove_connection(connection)
+        return server.erase(connection)
             .and_then([&](auto && v) {
                 server.callbacks.on_disconnected(v.mapped());
                 return result<QUIC_STATUS>{ QUIC_STATUS_SUCCESS };

@@ -29,18 +29,15 @@ enum class quic_error_code : std::int32_t
     listener_start_failed,
     stream_open_failed,
     stream_start_failed,
-    stream_emplace_failed,
-    stream_already_exists,
-    stream_does_not_exist,
     connection_initialization_failed,
     connection_start_failed,
-    connection_already_exists,
-    connection_emplace_failed,
-    connection_does_not_exists,
     client_not_connected,
     client_already_connected,
     send_failed,
-    not_yet_implemented
+    not_yet_implemented,
+    value_already_exists,
+    value_emplace_failed,
+    value_does_not_exists
 };
 
 /******************************************************
