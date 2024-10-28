@@ -1,3 +1,8 @@
+/******************************************************
+ * Base class type for msquic server / client classes.
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <mad/log_printer.hpp>
@@ -11,7 +16,10 @@
 namespace mad::nexus {
 
 /**
- * Base class for msquic client an the server
+ * Base class for msquic client & server.
+ *
+ * This class implements the common interface functions listed in quic_base that
+ * is shareed between the msquic_server and msquic_client.
  */
 class msquic_base : virtual public quic_base,
                     public log_printer {

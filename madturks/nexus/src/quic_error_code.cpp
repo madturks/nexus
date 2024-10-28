@@ -47,22 +47,10 @@ std::string quic_error_code_category::message(int condition) const {
             return "Stream open failed.";
         case stream_start_failed:
             return "Stream start failed.";
-        case stream_emplace_failed:
-            return "Stream insert to map failed.";
-        case stream_already_exists:
-            return "Stream already exists.";
-        case stream_does_not_exist:
-            return "Stream does not exist.";
         case connection_start_failed:
             return "Connection start failed.";
         case connection_initialization_failed:
             return "Connection initialization failed.";
-        case connection_does_not_exists:
-            return "Connection does not exists.";
-        case connection_emplace_failed:
-            return "Connection emplace failed.";
-        case connection_already_exists:
-            return "Connection already exists.";
         case send_failed:
             return "Send failed.";
         case not_yet_implemented:
@@ -71,6 +59,12 @@ std::string quic_error_code_category::message(int condition) const {
             return "Client is not connected.";
         case client_already_connected:
             return "Client is already in connected state.";
+        case value_already_exists:
+            return "Value already exists.";
+        case value_does_not_exists:
+            return "Value does not exist.";
+        case value_emplace_failed:
+            return "Value emplace failed.";
     }
 
     MAD_EXHAUSTIVE_SWITCH_END

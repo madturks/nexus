@@ -127,13 +127,16 @@ struct MsQuicClientCallbacks {
             .on_data_received = client.callbacks.on_stream_data_received
         };
 
+        auto stream_shared_ptr = std::shared_ptr<void>{
+            new_stream,
+            [api = client.application.api()](QUIC_HANDLE * sp) {
+                api->StreamClose(sp);
+            }
+        };
+
         return client.connection
-            ->add_new_stream(
-                { new_stream,
-                  [api = client.application.api()](QUIC_HANDLE * sp) {
-                      api->StreamClose(sp);
-                  } },
-                scbs)
+            ->add(stream_shared_ptr, stream_shared_ptr.get(),
+                  *client.connection, std::move(scbs))
             .and_then([&](auto && v) noexcept
                       -> result<std::reference_wrapper<stream>> {
                 MAD_LOG_DEBUG_I(client, "Client peer stream started!");
