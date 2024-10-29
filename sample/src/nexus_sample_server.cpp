@@ -268,9 +268,7 @@ int main(int argc, char * argv []) {
                 &server_on_stream_end, server.get());
         }
 
-        auto result = server->init().and_then([&] {
-            return server->listen(cfg.alpn, 6666);
-        });
+        auto result = server->listen(cfg.alpn, 6666);
 
         if (!result) {
             const auto & error = result.error();

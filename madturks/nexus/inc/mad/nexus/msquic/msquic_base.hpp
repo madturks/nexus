@@ -15,16 +15,15 @@
 
 namespace mad::nexus {
 
-/**
+/******************************************************
  * Base class for msquic client & server.
  *
  * This class implements the common interface functions listed in quic_base that
  * is shareed between the msquic_server and msquic_client.
- */
+ ******************************************************/
 class msquic_base : virtual public quic_base,
                     public log_printer {
 public:
-    auto init() -> result<> override;
     auto open_stream(connection & cctx,
                      std::optional<stream_data_callback_t> data_callback)
         -> result<std::reference_wrapper<stream>> override;
