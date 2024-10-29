@@ -130,26 +130,31 @@ int main(int argc, char * argv []) {
     cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
     cfg.udp_port_number = 6666;
 
-    auto app = mad::nexus::make_quic_application(cfg);
+    auto application = mad::nexus::make_quic_application(cfg);
 
-    auto client = app->make_client();
+    auto client = application
+                      .and_then([](auto && app) {
+                          return app->make_client();
+                      })
+                      .transform(
+                          [](std::unique_ptr<mad::nexus::quic_client> && cl) {
+                              using enum mad::nexus::callback_type;
+                              cl->register_callback<connected>(
+                                  &client_on_connected, cl.get());
+                              cl->register_callback<disconnected>(
+                                  &client_on_disconnected, cl.get());
+                              cl->register_callback<stream_start>(
+                                  &client_on_stream_start, cl.get());
+                              cl->register_callback<stream_data>(
+                                  &client_stream_data_received, cl.get());
+                              cl->register_callback<stream_end>(
+                                  &client_on_stream_end, cl.get());
+                              return std::move(cl);
+                          });
 
-    // Register callback functions
-    {
-        using enum mad::nexus::callback_type;
-        client->register_callback<connected>(
-            &client_on_connected, client.get());
-        client->register_callback<disconnected>(
-            &client_on_disconnected, client.get());
-        client->register_callback<stream_start>(
-            &client_on_stream_start, client.get());
-        client->register_callback<stream_data>(
-            &client_stream_data_received, client.get());
-        client->register_callback<stream_end>(
-            &client_on_stream_end, client.get());
-    }
-
-    auto result = client->connect("127.0.0.1", 6666);
+    auto result = client.and_then([](auto && cl) {
+        return cl->connect("127.0.0.1", 6666);
+    });
 
     if (!result) {
         const auto & error = result.error();

@@ -60,7 +60,8 @@ private:
      * that creates the msquic_client objects. It's the only
      * way for a API consumer to create a msquic client.
      ******************************************************/
-    friend std::unique_ptr<quic_client> msquic_application::make_client();
+    friend result<std::unique_ptr<quic_client>>
+    msquic_application::make_client();
 
     /******************************************************
      * Construct a new msquic client object.

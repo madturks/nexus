@@ -29,7 +29,8 @@ public:
     virtual result<> listen(std::string_view alpn, std::uint16_t port) override;
 
 private:
-    friend std::unique_ptr<quic_server> msquic_application::make_server();
+    friend result<std::unique_ptr<quic_server>>
+    msquic_application::make_server();
     /**
      * Construct a new msquic server object
      *

@@ -89,12 +89,6 @@ public:
     [[nodiscard]] virtual auto
     send(stream & stream, send_buffer<true> buf) -> result<std::size_t> = 0;
 
-    /**
-     * Register a callback function for a specific event.
-     *
-     * @param args The callback function, and the user-defined context pointer
-     */
-
     /******************************************************
      * Register a callback function for a specific event happening
      * in the connection or the streams.

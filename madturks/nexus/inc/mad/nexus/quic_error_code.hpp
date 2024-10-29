@@ -37,7 +37,9 @@ enum class quic_error_code : std::int32_t
     not_yet_implemented,
     value_already_exists,
     value_emplace_failed,
-    value_does_not_exists
+    value_does_not_exists,
+    memory_allocation_failed,
+    no_such_implementation
 };
 
 /******************************************************

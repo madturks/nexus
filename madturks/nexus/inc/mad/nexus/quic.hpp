@@ -6,6 +6,7 @@
 #pragma once
 
 #include <mad/nexus/quic_application.hpp>
+#include <mad/nexus/result.hpp>
 
 #include <memory>
 
@@ -17,6 +18,6 @@ namespace mad::nexus {
  * @param cfg The configuration
  * @return The quic application
  ******************************************************/
-std::unique_ptr<quic_application>
+result<std::unique_ptr<quic_application>>
 make_quic_application(const struct quic_configuration & cfg);
 } // namespace mad::nexus

@@ -251,50 +251,53 @@ int main(int argc, char * argv []) {
     cfg.idle_timeout = std::chrono::milliseconds{ 10000 };
     cfg.udp_port_number = 6666;
 
-    auto app = mad::nexus::make_quic_application(cfg);
-    {
-        auto server = app->make_server();
+    auto application = mad::nexus::make_quic_application(cfg);
 
-        // Register callback functions
-        {
-            using enum mad::nexus::callback_type;
-            server->register_callback<connected>(
-                &server_on_connected, server.get());
-            server->register_callback<disconnected>(
-                &server_on_disconnected, server.get());
-            server->register_callback<stream_start>(
-                &server_on_stream_start, server.get());
-            server->register_callback<stream_end>(
-                &server_on_stream_end, server.get());
-        }
+    auto server = application
+                      .and_then([](auto && app) {
+                          return app->make_server();
+                      })
+                      .transform([](auto && srv) {
+                          using enum mad::nexus::callback_type;
+                          srv->template register_callback<connected>(
+                              &server_on_connected, srv.get());
+                          srv->template register_callback<disconnected>(
+                              &server_on_disconnected, srv.get());
+                          srv->template register_callback<stream_start>(
+                              &server_on_stream_start, srv.get());
+                          srv->template register_callback<stream_end>(
+                              &server_on_stream_end, srv.get());
+                          return std::move(srv);
+                      });
 
-        auto result = server->listen(cfg.alpn, 6666);
+    auto listen_result = server.and_then([alpn = cfg.alpn](auto && v) {
+        return v->listen(alpn, 6666);
+    });
 
-        if (!result) {
-            const auto & error = result.error();
-            MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
-                            error.value(), error.message());
-            return error.value();
-        }
-
-        MAD_LOG_INFO_I(
-            logger, "QUIC server is listening for incoming connections.");
-        MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
-
-        std::thread{ []() {
-            while (!stop_src.get_token().stop_requested()) {
-                MAD_LOG_INFO_I(logger, "{} sends are still in flight.",
-                               mad::nexus::stream::sends_in_flight.load());
-                //   MAD_LOG_INFO_I(logger, "mem: {} / {}.",
-                //                mem_usage.load(), mem_usage_arr.load());
-                std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
-                // malloc_trim(0);
-            }
-        } }.detach();
-        getchar();
-
-        stop_src.request_stop();
+    if (!listen_result) {
+        const auto & error = listen_result.error();
+        MAD_LOG_ERROR_I(logger, "QUIC server initialization failed: {}, {}",
+                        error.value(), error.message());
+        return error.value();
     }
+
+    MAD_LOG_INFO_I(
+        logger, "QUIC server is listening for incoming connections.");
+    MAD_LOG_INFO_I(logger, "Press any key to stop the app.");
+
+    std::thread{ []() {
+        while (!stop_src.get_token().stop_requested()) {
+            MAD_LOG_INFO_I(logger, "{} sends are still in flight.",
+                           mad::nexus::stream::sends_in_flight.load());
+            //   MAD_LOG_INFO_I(logger, "mem: {} / {}.",
+            //                mem_usage.load(), mem_usage_arr.load());
+            std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
+            // malloc_trim(0);
+        }
+    } }.detach();
+    getchar();
+
+    stop_src.request_stop();
 
     {
         auto map = connections.exclusive_access();

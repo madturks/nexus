@@ -24,13 +24,15 @@ public:
      * Create a new server using application's details (configuration
      * and other implementation specific details)
      ******************************************************/
-    [[nodiscard]] virtual std::unique_ptr<quic_server> make_server() = 0;
+    [[nodiscard]] virtual result<std::unique_ptr<quic_server>>
+    make_server() = 0;
 
     /******************************************************
      * Create a new client using application's details (configuration
      * and other implementation specific details)
      ******************************************************/
-    [[nodiscard]] virtual std::unique_ptr<quic_client> make_client() = 0;
+    [[nodiscard]] virtual result<std::unique_ptr<quic_client>>
+    make_client() = 0;
 
     /******************************************************
      * Destroy the quic application object

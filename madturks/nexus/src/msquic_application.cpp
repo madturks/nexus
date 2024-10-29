@@ -54,7 +54,7 @@ settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
 
 namespace mad::nexus {
 
-std::unique_ptr<quic_application>
+result<std::unique_ptr<quic_application>>
 make_msquic_application(const quic_configuration & cfg) {
 
     /******************************************************
@@ -81,7 +81,7 @@ make_msquic_application(const quic_configuration & cfg) {
     if (nullptr == api) {
         const ::QUIC_API_TABLE * api_table{ nullptr };
         if (auto result = MsQuicOpen2(&api_table); QUIC_FAILED(result)) {
-            return nullptr;
+            return std::unexpected(quic_error_code::api_initialization_failed);
         }
         MAD_EXPECTS(api_table);
         api = std::shared_ptr<const ::QUIC_API_TABLE>(api_table, MsQuicClose);
@@ -105,7 +105,8 @@ make_msquic_application(const quic_configuration & cfg) {
 
         if (auto r = api->RegistrationOpen(&regcfg, &registration_handle);
             QUIC_FAILED(r)) {
-            return nullptr;
+            return std::unexpected(
+                quic_error_code::registration_initialization_failed);
         }
 
         registration = std::shared_ptr<QUIC_HANDLE>(
@@ -138,7 +139,8 @@ make_msquic_application(const quic_configuration & cfg) {
                 registration.get(), &alpn, 1, &msquic_settings,
                 sizeof(QUIC_SETTINGS), nullptr, &configuration_handle);
             QUIC_FAILED(r)) {
-            return nullptr;
+            return std::unexpected(
+                quic_error_code::configuration_initialization_failed);
         }
 
         configuration = std::shared_ptr<QUIC_HANDLE>(
@@ -191,7 +193,8 @@ make_msquic_application(const quic_configuration & cfg) {
         if (auto r = api->ConfigurationLoadCredential(
                 configuration.get(), &credential_config);
             QUIC_FAILED(r)) {
-            return nullptr;
+            return std::unexpected(
+                quic_error_code::configuration_load_credential_failed);
         }
 
         // Is there a way to assert?
@@ -204,7 +207,7 @@ make_msquic_application(const quic_configuration & cfg) {
 
     if (nullptr == result) {
         // allocation failure
-        return nullptr;
+        return std::unexpected(quic_error_code::memory_allocation_failed);
     }
 
     return std::unique_ptr<msquic_application>(result);
@@ -223,14 +226,14 @@ msquic_application::msquic_application(
 
 msquic_application::~msquic_application() = default;
 
-std::unique_ptr<quic_server> msquic_application::make_server() {
+result<std::unique_ptr<quic_server>> msquic_application::make_server() {
     MAD_EXPECTS(msquic_api);
     MAD_EXPECTS(registration_ptr);
     MAD_EXPECTS(configuration_ptr);
     return std::unique_ptr<msquic_server>(new msquic_server(*this));
 }
 
-std::unique_ptr<quic_client> msquic_application::make_client() {
+result<std::unique_ptr<quic_client>> msquic_application::make_client() {
     MAD_EXPECTS(msquic_api);
     MAD_EXPECTS(registration_ptr);
     MAD_EXPECTS(configuration_ptr);
