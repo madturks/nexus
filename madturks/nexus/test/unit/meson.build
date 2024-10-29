@@ -1,0 +1,18 @@
+ut_msquic_application = executable(
+    'ut_msquic_appllication',
+    'ut_msquic_application.cpp',
+    dependencies: [
+        nexus,
+        gtest,
+        gmock,
+        msquic,
+        flatbuffers,
+        madturks_core_testutils
+    ],
+    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
+)
+
+test(
+    'msquic_application unit tests',
+    ut_msquic_application,
+)

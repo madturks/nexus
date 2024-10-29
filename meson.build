@@ -35,7 +35,6 @@ gmock = dependency('gmock', include_type: 'system')
 gbench = dependency('benchmark', include_type: 'system')
 stduuid = dependency('stduuid', include_type: 'system')
 tcmalloc = dependency('libtcmalloc_minimal', include_type: 'system', static : false)
-
 # For some unknown reason, meson does not seem to add the tcmalloc_libdir
 # to RPATH, so the code below does exactly that.
 tcmalloc_libdir = tcmalloc.get_variable(pkgconfig: 'libdir')
@@ -72,6 +71,7 @@ subdir('madturks/core/random')
 subdir('madturks/core/container')
 subdir('madturks/core/concurrency')
 subdir('madturks/core/temputils')
+subdir('madturks/core/testutils')
 subdir('madturks/core/log')
 subdir('madturks/nexus')
 subdir('sample')

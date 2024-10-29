@@ -8,11 +8,14 @@
 #include <filesystem>
 #include <memory>
 
-/**
- * This is a weak pointer to hold a reference to msquic_auto_init
- * object if it's already been initialized.
- */
-static std::weak_ptr<void> auto_init_obj{};
+/******************************************************
+ * MSQUIC API observer object.
+ *
+ * Keeps a weak reference to the MSQUIC API object so
+ * the code can fetch the object for subsequent application
+ * initializations.
+ ******************************************************/
+std::weak_ptr<const ::QUIC_API_TABLE> msquic_api{};
 
 static QUIC_SETTINGS
 settings_to_msquic(const mad::nexus::quic_configuration & cfg) {
@@ -56,15 +59,6 @@ namespace mad::nexus {
 
 result<std::unique_ptr<quic_application>>
 make_msquic_application(const quic_configuration & cfg) {
-
-    /******************************************************
-     * MSQUIC API observer object.
-     *
-     * Keeps a weak reference to the MSQUIC API object so
-     * the code can fetch the object for subsequent application
-     * initializations.
-     ******************************************************/
-    static std::weak_ptr<const ::QUIC_API_TABLE> msquic_api{};
 
     // Try to retrieve the API pointer, if any.
     std::shared_ptr<const ::QUIC_API_TABLE> api = msquic_api.lock();
