@@ -149,9 +149,7 @@ int main(int argc, char * argv []) {
             &client_on_stream_end, client.get());
     }
 
-    auto result = client->init().and_then([&]() {
-        return client->connect("127.0.0.1", 6666);
-    });
+    auto result = client->connect("127.0.0.1", 6666);
 
     if (!result) {
         const auto & error = result.error();

@@ -316,10 +316,6 @@ msquic_base::msquic_base(const msquic_application & app) :
 
 msquic_base::~msquic_base() = default;
 
-auto msquic_base::init() -> result<> {
-    return {};
-}
-
 auto msquic_base::open_stream(
     connection & cctx, std::optional<stream_data_callback_t> data_callback)
     -> result<std::reference_wrapper<stream>> {

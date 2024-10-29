@@ -27,13 +27,6 @@ public:
      ******************************************************/
     quic_base() = default;
 
-    /******************************************************
-     * Perform the initialization of the class instance.
-     *
-     * @return Result object indiccating success or failure.
-     ******************************************************/
-    [[nodiscard]] virtual result<> init() = 0;
-
     /**
      * Open a new stream in given connection context (@p cctx)
      *

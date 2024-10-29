@@ -1,3 +1,7 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #pragma once
 
 #include <mad/nexus/quic_application.hpp>
@@ -7,32 +11,43 @@ struct QUIC_HANDLE;
 
 namespace mad::nexus {
 
-/**
- * quic_application implementation using MSQUIC
- */
+/******************************************************
+ * msquic-based quic_application
+ ******************************************************/
 class msquic_application : public quic_application {
 public:
-    /**
-     * Create a QUIC server of msquic implementation.
-     */
+    /******************************************************
+     * Create a quic_server with the registration & configuration
+     * of the application.
+     *
+     * @return The new server
+     ******************************************************/
     virtual std::unique_ptr<quic_server> make_server() override;
 
-    /**
-     * Create a QUIC client of msquic implementation.
-     */
+    /******************************************************
+     * Create a quic_client with the registration & configuration
+     * of the application.
+     *
+     * @return The new client
+     ******************************************************/
     virtual std::unique_ptr<quic_client> make_client() override;
 
+    /******************************************************
+     * Get the QUIC_API_TABLE object pointer of the application.
+     * @return const QUIC_API_TABLE*
+     ******************************************************/
     const QUIC_API_TABLE * api() const noexcept;
 
-    /**
-     *
-     *
-     * @return * MsQuicRegistration const&
-     */
+    /******************************************************
+     * Get the QUIC_REGISTRATION object handle of the application
+     * @return  QUIC_HANDLE*
+     ******************************************************/
     QUIC_HANDLE * registration() const noexcept;
-    /**
-     * MsQuicConfiguration object of the application.
-     */
+
+    /******************************************************
+     * Get the QUIC_CONFIGURATION object handle of the application
+     * @return  QUIC_HANDLE*
+     ******************************************************/
     QUIC_HANDLE * configuration() const noexcept;
 
     virtual ~msquic_application() override;
