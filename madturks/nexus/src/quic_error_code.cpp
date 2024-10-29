@@ -65,6 +65,10 @@ std::string quic_error_code_category::message(int condition) const {
             return "Value does not exist.";
         case value_emplace_failed:
             return "Value emplace failed.";
+        case memory_allocation_failed:
+            return "Memory allocation failed.";
+        case no_such_implementation:
+            return "No such implementation!";
     }
 
     MAD_EXHAUSTIVE_SWITCH_END

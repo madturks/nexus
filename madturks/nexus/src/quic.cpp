@@ -1,12 +1,16 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/nexus/quic.hpp>
 
-#include <format>
-
 namespace mad::nexus {
-extern std::unique_ptr<quic_application>
+
+extern result<std::unique_ptr<quic_application>>
 make_msquic_application(const struct quic_configuration &);
 
-std::unique_ptr<quic_application>
+result<std::unique_ptr<quic_application>>
 make_quic_application(const struct quic_configuration & cfg) {
     switch (cfg.impl_type()) {
         using enum e_quic_impl_type;
@@ -14,8 +18,7 @@ make_quic_application(const struct quic_configuration & cfg) {
             return make_msquic_application(cfg);
     }
 
-    throw std::runtime_error{ std::format(
-        "No such implementation as {}", std::to_underlying(cfg.impl_type())) };
+    return std::unexpected(quic_error_code::no_such_implementation);
 }
 
 } // namespace mad::nexus

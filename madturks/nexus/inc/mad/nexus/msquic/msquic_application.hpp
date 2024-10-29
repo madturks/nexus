@@ -5,6 +5,7 @@
 #pragma once
 
 #include <mad/nexus/quic_application.hpp>
+#include <mad/nexus/result.hpp>
 
 struct QUIC_API_TABLE;
 struct QUIC_HANDLE;
@@ -22,7 +23,7 @@ public:
      *
      * @return The new server
      ******************************************************/
-    virtual std::unique_ptr<quic_server> make_server() override;
+    virtual result<std::unique_ptr<quic_server>> make_server() override;
 
     /******************************************************
      * Create a quic_client with the registration & configuration
@@ -30,7 +31,7 @@ public:
      *
      * @return The new client
      ******************************************************/
-    virtual std::unique_ptr<quic_client> make_client() override;
+    virtual result<std::unique_ptr<quic_client>> make_client() override;
 
     /******************************************************
      * Get the QUIC_API_TABLE object pointer of the application.
@@ -55,7 +56,7 @@ public:
 private:
     // Befriend the make_msquic_application to allow access to the private
     // constructor
-    friend std::unique_ptr<quic_application>
+    friend result<std::unique_ptr<quic_application>>
     make_msquic_application(const struct quic_configuration &);
 
     /******************************************************
