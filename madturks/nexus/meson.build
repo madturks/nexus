@@ -36,3 +36,4 @@ nexus = declare_dependency(
 
 # subdir('test/unit') # later
 subdir('test/integration')
+subdir('test/unit')

@@ -10,6 +10,8 @@
 struct QUIC_API_TABLE;
 struct QUIC_HANDLE;
 
+extern std::weak_ptr<const ::QUIC_API_TABLE> msquic_api;
+
 namespace mad::nexus {
 
 /******************************************************
@@ -51,6 +53,9 @@ public:
      ******************************************************/
     QUIC_HANDLE * configuration() const noexcept;
 
+    /******************************************************
+     * Destroy the msquic application object
+     ******************************************************/
     virtual ~msquic_application() override;
 
 private:
@@ -58,6 +63,9 @@ private:
     // constructor
     friend result<std::unique_ptr<quic_application>>
     make_msquic_application(const struct quic_configuration &);
+
+    // Befriend the unit test class.
+    friend struct tf_msquic_application;
 
     /******************************************************
      * Construct a new msquic application object.

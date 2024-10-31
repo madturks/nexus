@@ -145,6 +145,7 @@ BraceWrapping:
     # {} 
     SplitEmptyFunction: false
 
+
     # namespace foo
     # {}
     SplitEmptyNamespace: false
