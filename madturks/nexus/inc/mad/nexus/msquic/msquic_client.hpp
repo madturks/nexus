@@ -49,6 +49,11 @@ public:
 
 private:
     /******************************************************
+     * MSQUIC client unit tests
+     ******************************************************/
+    friend struct tf_msquic_client;
+
+    /******************************************************
      * The callbacks are initiated by the client and they
      * need to be able to access the connection_ctx to update
      * the connection state.

@@ -39,26 +39,26 @@ public:
      * Get the QUIC_API_TABLE object pointer of the application.
      * @return const QUIC_API_TABLE*
      ******************************************************/
-    const QUIC_API_TABLE * api() const noexcept;
+    virtual const QUIC_API_TABLE * api() const noexcept;
 
     /******************************************************
      * Get the QUIC_REGISTRATION object handle of the application
      * @return  QUIC_HANDLE*
      ******************************************************/
-    QUIC_HANDLE * registration() const noexcept;
+    virtual QUIC_HANDLE * registration() const noexcept;
 
     /******************************************************
      * Get the QUIC_CONFIGURATION object handle of the application
      * @return  QUIC_HANDLE*
      ******************************************************/
-    QUIC_HANDLE * configuration() const noexcept;
+    virtual QUIC_HANDLE * configuration() const noexcept;
 
     /******************************************************
      * Destroy the msquic application object
      ******************************************************/
     virtual ~msquic_application() override;
 
-private:
+protected:
     // Befriend the make_msquic_application to allow access to the private
     // constructor
     friend result<std::unique_ptr<quic_application>>

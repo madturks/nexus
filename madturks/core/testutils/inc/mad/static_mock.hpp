@@ -73,6 +73,10 @@ struct static_mock<ReturnType (*)(Args...), Unique> {
         return *mock;
     }
 
+    decltype(auto) fn() {
+        return pod_fn;
+    }
+
 private:
     // This is static just because the static function needs to be able to
     // access to the mock object. Every class instance is an unique type
