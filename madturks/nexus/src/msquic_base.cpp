@@ -340,7 +340,6 @@ auto msquic_base::open_stream(
     stream_callbacks scb{
         .on_start = callbacks.on_stream_start,
         .on_close = callbacks.on_stream_close,
-
         .on_data_received = data_callback ? data_callback.value()
                                           : callbacks.on_stream_data_received
     };
@@ -379,7 +378,6 @@ auto msquic_base::open_stream(
 }
 
 auto msquic_base::close_stream(stream & sctx) -> result<> {
-
     return sctx.connection().erase(sctx.handle_as<>()).and_then([&](auto &&) {
         MAD_LOG_DEBUG_I(stream_logger(), "stream erased from connection map");
         return result<>{};
