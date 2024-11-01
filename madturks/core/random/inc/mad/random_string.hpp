@@ -1,9 +1,14 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 
 #pragma once
 
 #include <mad/random.hpp>
 #include <mad/random_arithmetic.hpp>
 
+#include <cstdint>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -57,14 +62,7 @@ generate(std::size_t min_l = 16, std::size_t max_l = 256,
     auto string_len = generate<std::size_t>(min_l, max_l);
     v.resize(string_len);
     std::span<std::string::value_type> result_span{ v.data(), v.length() };
-    fill_span(
-        result_span, charset
-        // arithmetic_boundary<typename std::string::value_type> {
-        //     .lower = std::numeric_limits<typename
-        //     std::string::value_type>::min(), .upper=
-        //     std::numeric_limits<typename std::string::value_type>::max()
-        // }
-    );
+    fill_span(result_span, charset);
     return v;
 }
 

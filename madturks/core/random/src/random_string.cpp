@@ -1,8 +1,14 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 
 #include <mad/random_string.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <numeric>
 #include <span>
 
 namespace mad::random {

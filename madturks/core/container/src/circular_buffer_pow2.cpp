@@ -1,3 +1,7 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 
 /* Return count in buffer.  */
 #define CIRC_CNT(head, tail, size) (((head) - (tail)) & ((size) - 1))

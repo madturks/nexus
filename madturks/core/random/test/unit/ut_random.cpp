@@ -1,10 +1,14 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/random.hpp>
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cassert>
-#include <iostream>
 #include <numeric>
 #include <vector>
 

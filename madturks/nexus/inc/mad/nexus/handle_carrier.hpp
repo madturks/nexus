@@ -22,6 +22,11 @@ struct handle_carrier {
      ******************************************************/
     handle_carrier(void * handle) : handle_(handle) {}
 
+    handle_carrier(const handle_carrier &) = default;
+    handle_carrier & operator=(const handle_carrier &) = default;
+    handle_carrier(handle_carrier &&) = default;
+    handle_carrier & operator=(handle_carrier &&) = default;
+
     /**
      * @brief Get the connection handle as type T.
      */
@@ -30,6 +35,9 @@ struct handle_carrier {
         MAD_EXPECTS(handle_);
         return static_cast<T>(handle_);
     }
+
+protected:
+    ~handle_carrier() = default;
 
 private:
     void * handle_;

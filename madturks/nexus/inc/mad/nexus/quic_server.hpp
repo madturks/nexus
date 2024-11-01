@@ -3,7 +3,6 @@
  * Copyright (c) 2024 The Madturks Organization
  * SPDX-License-Identifier: GPL-3.0-or-later
  ******************************************************/
-
 #pragma once
 
 #include <mad/nexus/quic_base.hpp>
@@ -19,7 +18,7 @@ namespace mad::nexus {
  * The QUIC server interface.
  ******************************************************/
 class quic_server : virtual public quic_base,
-                    public value_container<connection> {
+                    public handle_context_container<connection> {
 public:
     /******************************************************
      * Destroy the quic server object

@@ -18,6 +18,8 @@
 #include <gtest/gtest.h>
 #include <msquic.h>
 
+#include <numeric>
+
 static auto encode_monster_msg() {
     static auto validator =
         +[](void * uptr, std::span<const std::uint8_t> buf) -> std::size_t {

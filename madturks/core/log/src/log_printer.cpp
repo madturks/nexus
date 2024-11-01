@@ -1,3 +1,8 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/log_printer.hpp>
 
 #include <spdlog/pattern_formatter.h>

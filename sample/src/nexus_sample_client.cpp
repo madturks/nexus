@@ -132,25 +132,26 @@ int main(int argc, char * argv []) {
 
     auto application = mad::nexus::make_quic_application(cfg);
 
-    auto client = application
-                      .and_then([](auto && app) {
-                          return app->make_client();
-                      })
-                      .transform(
-                          [](std::unique_ptr<mad::nexus::quic_client> && cl) {
-                              using enum mad::nexus::callback_type;
-                              cl->register_callback<connected>(
-                                  &client_on_connected, cl.get());
-                              cl->register_callback<disconnected>(
-                                  &client_on_disconnected, cl.get());
-                              cl->register_callback<stream_start>(
-                                  &client_on_stream_start, cl.get());
-                              cl->register_callback<stream_data>(
-                                  &client_stream_data_received, cl.get());
-                              cl->register_callback<stream_end>(
-                                  &client_on_stream_end, cl.get());
-                              return std::move(cl);
-                          });
+    auto client =
+        application
+            .and_then([](auto && app) {
+                return app->make_client();
+            })
+            .transform(
+                [](std::unique_ptr<mad::nexus::quic_client> && cl) noexcept {
+                    using enum mad::nexus::callback_type;
+                    cl->register_callback<connected>(
+                        &client_on_connected, cl.get());
+                    cl->register_callback<disconnected>(
+                        &client_on_disconnected, cl.get());
+                    cl->register_callback<stream_start>(
+                        &client_on_stream_start, cl.get());
+                    cl->register_callback<stream_data>(
+                        &client_stream_data_received, cl.get());
+                    cl->register_callback<stream_end>(
+                        &client_on_stream_end, cl.get());
+                    return std::move(cl);
+                });
 
     auto result = client.and_then([](auto && cl) {
         return cl->connect("127.0.0.1", 6666);

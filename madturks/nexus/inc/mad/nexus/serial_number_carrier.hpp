@@ -26,6 +26,15 @@ struct serial_number_carrier {
         return serial_number_;
     }
 
+    serial_number_carrier() = default;
+    serial_number_carrier(const serial_number_carrier &) = default;
+    serial_number_carrier & operator=(const serial_number_carrier &) = default;
+    serial_number_carrier(serial_number_carrier &&) = default;
+    serial_number_carrier & operator=(serial_number_carrier &&) = default;
+
+protected:
+    ~serial_number_carrier() = default;
+
 private:
     /**
      * @brief Generate an unique identifier for the connection.
@@ -38,6 +47,6 @@ private:
         return id_provider.fetch_add(1);
     }
 
-    const std::uint64_t serial_number_{ generate_serial_number() };
+    std::uint64_t serial_number_{ generate_serial_number() };
 };
 } // namespace mad::nexus
