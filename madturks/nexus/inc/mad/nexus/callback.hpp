@@ -31,7 +31,7 @@ struct callback<FunctionReturnType(FunctionArgs...)> {
      * @param fn Callback function
      * @param in Implicit context pointer
      ******************************************************/
-    callback(callback_fn_t fn, context_ptr_t in) : fun_ptr(fn), ctx_ptr(in) {}
+    callback(callback_fn_t fun, context_ptr_t in) : fun_ptr(fun), ctx_ptr(in) {}
 
     callback() = default;
     callback(const callback & other) = default;
@@ -52,6 +52,10 @@ struct callback<FunctionReturnType(FunctionArgs...)> {
     void reset() {
         fun_ptr = nullptr;
         ctx_ptr = nullptr;
+    }
+
+    const auto & fn() const {
+        return fun_ptr;
     }
 
 private:

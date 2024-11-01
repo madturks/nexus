@@ -26,16 +26,6 @@ public:
      ******************************************************/
     quic_base() = default;
 
-    /**
-     * Open a new stream in given connection context (@p cctx)
-     *
-     * @param cctx The owner connection context
-     * @param data_callback The function to call when stream data arrives
-     * (optional).
-     *
-     * @return stream_context* when successful, std::error_code otherwise.
-     */
-
     /******************************************************
      * Open a new stream for the given connection.
      *

@@ -29,6 +29,7 @@ cpp_args = [
     '-Wno-reserved-identifier',
     '-Wno-global-constructors',
     '-Wno-switch-enum',
+    '-Wno-unknown-warning-option',
     '-fdiagnostics-absolute-paths',
     '-fexperimental-library',
     '-DFMT_HEADER_ONLY=1',
