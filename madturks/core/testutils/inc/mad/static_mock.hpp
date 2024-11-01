@@ -10,9 +10,6 @@
 
 #include <gmock/gmock.h>
 
-#include <concepts>
-#include <print>
-#include <source_location>
 #include <utility>
 
 namespace mad {
@@ -43,8 +40,6 @@ struct static_mock;
 template <typename ReturnType, typename... Args, typename Unique>
 struct static_mock<ReturnType (*)(Args...), Unique> {
     static_mock() {
-        // std::print("constructor called {} {}!\n",
-        // std::source_location::current().function_name(), Unique);
         MAD_ASSERT(nullptr == mock);
         mock = new ::testing::MockFunction<ReturnType(Args...)>;
     }

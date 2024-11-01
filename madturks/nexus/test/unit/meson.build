@@ -9,7 +9,7 @@ ut_msquic_application = executable(
         flatbuffers,
         madturks_core_testutils
     ],
-    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
+    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables', '-Wno-noexcept'],
 )
 
 test(
@@ -29,7 +29,7 @@ ut_msquic_client = executable(
         flatbuffers,
         madturks_core_testutils
     ],
-    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables'],
+    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables', '-Wno-noexcept'],
 )
 
 test(

@@ -1,15 +1,17 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #pragma once
 
-// Module-local
 #include <mad/log_config.hpp>
 #include <mad/log_level.hpp>
 #include <mad/meta/source_location.hpp>
 
-// Third-party: fmtlib
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-// Standard library
 #include <exception>
 #include <iostream>
 #include <memory>

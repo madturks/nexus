@@ -6,7 +6,7 @@
 #pragma once
 
 #include <mad/nexus/handle_carrier.hpp>
-#include <mad/nexus/value_container.hpp>
+#include <mad/nexus/handle_context_container.hpp>
 
 namespace mad::nexus {
 
@@ -16,7 +16,7 @@ namespace mad::nexus {
  ******************************************************/
 struct connection : public serial_number_carrier,
                     handle_carrier,
-                    value_container<stream> {
+                    handle_context_container<stream> {
 
     using handle_carrier::handle_carrier;
 };

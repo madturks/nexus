@@ -1,4 +1,5 @@
 /******************************************************
+ * msquic_application unit tests
  * Copyright (c) 2024 The Madturks Organization
  * SPDX-License-Identifier: GPL-3.0-or-later
  ******************************************************/
@@ -36,12 +37,6 @@ struct tf_msquic_application : public ::testing::Test {
             });
     }
 
-    virtual void TearDown() override {
-        stub_mocks.clear();
-    }
-
-    std::vector<std::shared_ptr<void>> stub_mocks;
-
     template <typename... Args>
     auto construct_uut(Args &&... args) {
         return std::unique_ptr<msquic_application>(
@@ -61,10 +56,10 @@ struct tf_msquic_application : public ::testing::Test {
         return reinterpret_cast<QUIC_HANDLE *>(0xBADCAFE);
     }();
 
-    std::shared_ptr<QUIC_HANDLE> mock_registration;
-    std::shared_ptr<QUIC_HANDLE> mock_configuration;
-    std::shared_ptr<const QUIC_API_TABLE> mock_api_table;
-    std::unique_ptr<quic_application> app;
+    std::shared_ptr<QUIC_HANDLE> mock_registration{};
+    std::shared_ptr<QUIC_HANDLE> mock_configuration{};
+    std::shared_ptr<const QUIC_API_TABLE> mock_api_table{};
+    std::unique_ptr<quic_application> app{};
 };
 
 using testing::_;

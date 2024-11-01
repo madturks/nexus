@@ -2,7 +2,6 @@
  * Copyright (c) 2024 The Madturks Organization
  * SPDX-License-Identifier: GPL-3.0-or-later
  ******************************************************/
-
 #pragma once
 
 #include <mad/nexus/quic_application.hpp>

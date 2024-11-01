@@ -1,3 +1,9 @@
+/******************************************************
+ * msquic_client unit tests
+ *
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
 #include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>
 #include <mad/static_mock.hpp>

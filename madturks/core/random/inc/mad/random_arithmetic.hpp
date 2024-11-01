@@ -1,14 +1,14 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #pragma once
 
 #include <mad/concepts>
 #include <mad/random.hpp>
 
-#include <concepts>
-#include <cstdint>
-#include <functional>
-#include <numeric>
 #include <span>
-#include <string>
 #include <type_traits>
 
 namespace mad::random {

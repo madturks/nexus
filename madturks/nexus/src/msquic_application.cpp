@@ -1,3 +1,8 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/macros.hpp>
 #include <mad/nexus/msquic/msquic_application.hpp>
 #include <mad/nexus/msquic/msquic_client.hpp>

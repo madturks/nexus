@@ -1,11 +1,14 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #pragma once
 
-// cppstd
 #include <algorithm>
 #include <climits>
 #include <random>
 
-// mad
 namespace mad::random {
 
 static inline std::independent_bits_engine<std::default_random_engine, CHAR_BIT,

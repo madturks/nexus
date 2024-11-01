@@ -1,3 +1,10 @@
+/******************************************************
+ * quic_server implementation with MSQUIC.
+ *
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #include <mad/circular_buffer_vm.hpp>
 #include <mad/concurrent.hpp>
 #include <mad/log>

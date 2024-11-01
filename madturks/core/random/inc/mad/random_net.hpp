@@ -1,3 +1,8 @@
+/******************************************************
+ * Copyright (c) 2024 The Madturks Organization
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ ******************************************************/
+
 #pragma once
 
 #include <mad/random_arithmetic.hpp>
@@ -22,9 +27,6 @@ namespace mad::random { namespace detail {
 #else
 #error "C++20 is required for networking ts support!"
 #endif
-
-#include <array>
-#include <cstdint>
 
 namespace mad {
 namespace net = detail::net_namespace;

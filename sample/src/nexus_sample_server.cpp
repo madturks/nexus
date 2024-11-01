@@ -257,7 +257,7 @@ int main(int argc, char * argv []) {
                       .and_then([](auto && app) {
                           return app->make_server();
                       })
-                      .transform([](auto && srv) {
+                      .transform([](auto && srv) noexcept {
                           using enum mad::nexus::callback_type;
                           srv->template register_callback<connected>(
                               &server_on_connected, srv.get());
