@@ -32,6 +32,10 @@ namespace mad {
  * mock type and the function pointer type. Also, in order to
  * be able to use the object directly in gmock macro calls like
  * ON_CALL, EXPECT_CALL, operator* returns the mock function.
+ *
+ *
+ * WARNING: In order to this class to function properly, each instance
+ * of this class must be initialized on a different line.
  ******************************************************/
 template <typename FnSig, typename Unique = decltype([] {
                           })>
@@ -40,6 +44,12 @@ struct static_mock;
 template <typename ReturnType, typename... Args, typename Unique>
 struct static_mock<ReturnType (*)(Args...), Unique> {
     static_mock() {
+        if (instance_count != 0) {
+            throw std::runtime_error{
+                "Each instantiation of static_mock can only have one instance!"
+            };
+        }
+        instance_count++;
         MAD_ASSERT(nullptr == mock);
         mock = new ::testing::MockFunction<ReturnType(Args...)>;
     }
@@ -52,6 +62,7 @@ struct static_mock<ReturnType (*)(Args...), Unique> {
         delete mock;
         mock = nullptr;
         MAD_ASSERT(nullptr == mock);
+        instance_count--;
     }
 
     inline operator decltype(auto)() {
@@ -73,6 +84,8 @@ struct static_mock<ReturnType (*)(Args...), Unique> {
     }
 
 private:
+    static inline auto instance_count = 0;
+
     // This is static just because the static function needs to be able to
     // access to the mock object. Every class instance is an unique type
     // so this is acting like a class member variable.
