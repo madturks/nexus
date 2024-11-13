@@ -44,13 +44,12 @@ struct static_mock;
 template <typename ReturnType, typename... Args, typename Unique>
 struct static_mock<ReturnType (*)(Args...), Unique> {
     static_mock() {
-        if (instance_count != 0) {
+        MAD_ASSERT(nullptr == mock);
+        if (mock) {
             throw std::runtime_error{
                 "Each instantiation of static_mock can only have one instance!"
             };
         }
-        instance_count++;
-        MAD_ASSERT(nullptr == mock);
         mock = new ::testing::MockFunction<ReturnType(Args...)>;
     }
 
@@ -62,7 +61,6 @@ struct static_mock<ReturnType (*)(Args...), Unique> {
         delete mock;
         mock = nullptr;
         MAD_ASSERT(nullptr == mock);
-        instance_count--;
     }
 
     inline operator decltype(auto)() {
@@ -84,8 +82,6 @@ struct static_mock<ReturnType (*)(Args...), Unique> {
     }
 
 private:
-    static inline auto instance_count = 0;
-
     // This is static just because the static function needs to be able to
     // access to the mock object. Every class instance is an unique type
     // so this is acting like a class member variable.
