@@ -26,7 +26,7 @@
         ".gdbinit": true,
         ".clang-*": true
     },
-    "C_Cpp.default.compileCommands": "/workspace/madturks/nexus/tgt/compile_commands.json",
+    "C_Cpp.default.compileCommands": "/workspaces/nexus/tgt/compile_commands.json",
     "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
     "terminal.integrated.scrollback": 100000,
     "debug.terminal.clearBeforeReusing": true,

@@ -55,3 +55,22 @@ test(
     'msquic_base unit tests',
     ut_msquic_base,
 )
+
+ut_msquic_server = executable(
+    'ut_msquic_server',
+    'ut_msquic_server.cpp',
+    dependencies: [
+        nexus,
+        gtest,
+        gmock,
+        msquic,
+        flatbuffers,
+        madturks_core_testutils
+    ],
+    cpp_args: ['-Wno-global-constructors', '-Wno-weak-vtables', '-Wno-noexcept'],
+)
+
+test(
+    'msquic_server unit tests',
+    ut_msquic_server,
+)

@@ -29,6 +29,7 @@ public:
     virtual result<> listen(std::string_view alpn, std::uint16_t port) override;
 
 private:
+    friend struct tf_msquic_server;
     friend result<std::unique_ptr<quic_server>>
     msquic_application::make_server();
     /**
