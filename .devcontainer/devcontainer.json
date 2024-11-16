@@ -41,7 +41,9 @@
 				"shyykoserhiy.vscode-spotify",
 				"tonybaloney.vscode-pets",
 				"redhat.vscode-yaml",
-				"cschlosser.doxdocgen"
+				"cschlosser.doxdocgen",
+				"vadimcn.vscode-lldb",
+				"ms-vscode.cpptools"
 			],
 			"settings": {
                 "terminal.integrated.profiles.linux": {

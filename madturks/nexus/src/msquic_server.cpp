@@ -251,12 +251,6 @@ msquic_server::~msquic_server() = default;
 
 auto msquic_server::listen(std::string_view alpn,
                            std::uint16_t port) -> result<> {
-
-    // Omit nul terminators from alpn if present
-    if (auto fi = alpn.find('\n'); fi != alpn.npos) {
-        alpn.remove_suffix(alpn.size() - fi);
-    }
-
     {
         HQUIC listener_handle{ nullptr };
 
@@ -293,7 +287,7 @@ auto msquic_server::listen(std::string_view alpn,
     if (auto r = application.api()->ListenerStart(
             listener.get(), &q_alpn, 1, &addr);
         QUIC_FAILED(r)) {
-        return std::unexpected(quic_error_code::stream_start_failed);
+        return std::unexpected(quic_error_code::listener_start_failed);
     }
 
     return {};
